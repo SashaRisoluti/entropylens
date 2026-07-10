@@ -152,3 +152,60 @@ def batch_wise_entropy(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
             reason[:] = REASON_N1
         return BatchEntropy(h_mm, normalized, reliable, reason,
                             n=n, bins=bins)
+
+
+_PER_EXAMPLE_STRATEGIES = ("relu", "abs")
+
+
+@dataclass
+class PerExampleEntropy:
+    """Entropy across neurons for each example (MATH_DECISIONS.md D3/D6).
+
+    entropy:    (N,) nats; NaN where the row is invalid (zero mass).
+    normalized: (N,) entropy / log(M), NaN where invalid.
+    valid:      (N,) bool — False means "entropy undefined for this row
+                (all-zero after strategy)", not "low entropy".
+    NOTE: no stderr here — each row's entropy is a deterministic function
+    of that row, not a sample estimate (D4). Uncertainty applies only to
+    batch aggregates (SEM of the mean over valid rows).
+    """
+    entropy: torch.Tensor
+    normalized: torch.Tensor
+    valid: torch.Tensor
+    strategy: str
+    m: int
+
+
+def per_example_entropy(activations, strategy):
+    """Entropy of each example's activation pattern across M neurons.
+
+    strategy is MANDATORY ('relu' or 'abs'): the two are not interchangeable
+    (Difetto 3: same input gives H=0.0856 vs 0.7362). Use
+    entropylens.strategies to derive it from the activation module type.
+    'shift' was removed: no theoretical grounding, and it annihilates
+    constant rows (the maximum-entropy case) into undefined ones.
+    """
+    if strategy not in _PER_EXAMPLE_STRATEGIES:
+        if strategy == "shift":
+            raise ValueError(
+                "strategy 'shift' was removed (MATH_DECISIONS.md D3): it has "
+                "no theoretical grounding and maps constant rows to an "
+                "undefined distribution. Choose 'relu' or 'abs' explicitly.")
+        raise ValueError(f"unknown strategy {strategy!r}; "
+                         f"choose from {_PER_EXAMPLE_STRATEGIES}")
+    with torch.no_grad():
+        x = _validate_input(activations, "per_example_entropy",
+                            min_dim=2).detach()
+        n, m = x.shape
+        a = x.clamp_min(0.0) if strategy == "relu" else x.abs()
+        s = a.sum(1)
+        valid = s > 0
+        p = torch.where(valid.unsqueeze(1), a / s.clamp(min=1e-38).unsqueeze(1),
+                        torch.zeros_like(a))
+        plogp = torch.where(p > 0, p * p.log(), torch.zeros_like(p))
+        h = -plogp.sum(1)
+        nan = torch.full_like(h, float("nan"))
+        h = torch.where(valid, h, nan)
+        scale = math.log(m) if m > 1 else 1.0
+        normalized = torch.where(valid, (h / scale).clamp(0.0, 1.0), nan)
+        return PerExampleEntropy(h, normalized, valid, strategy, m)
