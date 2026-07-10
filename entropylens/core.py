@@ -209,3 +209,51 @@ def per_example_entropy(activations, strategy):
         scale = math.log(m) if m > 1 else 1.0
         normalized = torch.where(valid, (h / scale).clamp(0.0, 1.0), nan)
         return PerExampleEntropy(h, normalized, valid, strategy, m)
+
+
+def confidence_interval(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
+                        value_range=None, level=0.95, n_boot=200,
+                        generator=None):
+    """Full-pipeline bootstrap CI for batch-wise entropy (MATH_DECISIONS.md
+    D4 as amended after adversarial verification; validation/exp4b).
+
+    Returns (estimate, lo, hi), each (M,). estimate = Miller-Madow point
+    estimate (bitwise identical to batch_wise_entropy). [lo, hi] is the
+    normal interval estimate +- z * sd over n_boot bootstrap replicates in
+    which the RAW values are resampled with replacement and the quantile
+    edges RE-estimated per replicate. Edge re-estimation variance is what
+    the closed-form (Basharin) stderr cannot see: it under-covered
+    (62.5-88% vs 95% nominal, exp4b) and was rejected; percentile/basic
+    bootstrap intervals collapse near the entropy ceiling (min 4%/31.5%)
+    and were rejected too. boot-normal coverage: 90.5-100% on
+    normal/uniform/exponential at N in {200, 1000, 5000}.
+
+    Cost: n_boot full histogram passes over the input — call on demand,
+    not per tracked batch (this is why BatchEntropy carries no stderr and
+    why this function takes raw activations, not a BatchEntropy: the CI is
+    not derivable from counts alone). Coverage validated for N >= 200.
+    Degenerate columns yield zero-width intervals — a documented blind
+    spot: the `reliable` flag of batch_wise_entropy signals those, the CI
+    cannot.
+    """
+    if not 0.0 < level < 1.0:
+        raise ValueError("level must be in (0, 1)")
+    if n_boot < 2:
+        raise ValueError("n_boot must be >= 2")
+    with torch.no_grad():
+        x = _validate_input(activations, "confidence_interval").detach()
+        if x.dim() == 1:
+            x = x.unsqueeze(1)
+        n, m = x.shape
+        counts, degenerate = _quantile_hist_counts(
+            x, bins, q_lo, q_hi, value_range)
+        est = _miller_madow(counts, n, degenerate)
+        hs = torch.empty(n_boot, m)
+        for r in range(n_boot):
+            ridx = torch.randint(0, n, (n,), generator=generator)
+            c_r, d_r = _quantile_hist_counts(
+                x[ridx], bins, q_lo, q_hi, value_range)
+            hs[r] = _miller_madow(c_r, n, d_r)
+        z = float(torch.special.ndtri(torch.tensor(0.5 + level / 2.0)))
+        half = z * hs.std(dim=0)
+        return est, (est - half).clamp(min=0.0), est + half
