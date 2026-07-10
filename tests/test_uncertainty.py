@@ -56,6 +56,37 @@ def test_ci_coverage_full_pipeline_smoke():
     assert hits / reps >= 0.85, f"coverage {hits / reps}"
 
 
+def test_ci_upper_bound_clamped_to_theoretical_max():
+    """Adversarial finding: on near-uniform data the raw normal interval
+    exceeded log(min(N,B)) in ~100% of runs; the estimand cannot, so the
+    interval is truncated to the bound (never lowers coverage)."""
+    x = torch.rand(500, 2, generator=torch.Generator().manual_seed(4))
+    est, lo, hi = core.confidence_interval(
+        x, n_boot=100, generator=torch.Generator().manual_seed(5))
+    bound = math.log(min(500, 32))
+    assert bool((hi <= torch.maximum(torch.full_like(est, bound), est)).all())
+    assert bool((hi >= est).all())
+
+
+def test_ci_sparsity_warning_below_validated_floor():
+    """Adversarial finding: at >90% single-bin mass the coverage floor
+    rises to N~400 (measured 83% at N=200); the function must warn."""
+    import pytest
+    g = torch.Generator().manual_seed(6)
+    x = torch.cat([torch.zeros(190, 1), torch.rand(10, 1, generator=g) + 0.5])
+    with pytest.warns(UserWarning, match="single bin"):
+        core.confidence_interval(x, n_boot=20,
+                                 generator=torch.Generator().manual_seed(7))
+    # large N with the same sparsity: no warning
+    x_big = torch.cat([torch.zeros(450, 1),
+                       torch.rand(50, 1, generator=g) + 0.5])
+    import warnings as _w
+    with _w.catch_warnings():
+        _w.simplefilter("error")
+        core.confidence_interval(x_big, n_boot=20,
+                                 generator=torch.Generator().manual_seed(8))
+
+
 def test_degenerate_zero_width_and_flagged():
     """Documented blind spot (D4): degenerate sample -> every bootstrap
     replicate identical -> zero-width CI; the reliable flag (not the CI)

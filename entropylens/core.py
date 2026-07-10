@@ -8,6 +8,7 @@ re-running validation/.
 All entropies are in nats.
 """
 import math
+import warnings
 from dataclasses import dataclass
 
 import torch
@@ -41,9 +42,18 @@ def _validate_input(x, fn, min_dim=1, max_dim=2):
 
 
 def reliability_threshold(n: int, bins: int) -> bool:
-    """Bias-dominance criterion (MATH_DECISIONS.md D2): reliable iff the
-    worst-case first-order bias (B-1)/(2N) is <= 5% of the normalization
-    scale log(min(N,B)). For B=32 this requires N >= 90."""
+    """Bias-dominance criterion (MATH_DECISIONS.md D2): flags unreliable
+    when the worst-case first-order bias (B-1)/(2N) exceeds 5% of the
+    normalization scale log(min(N,B)). For B=32 this requires N >= 90.
+
+    NECESSARY, NOT SUFFICIENT (adversarial review, D2 counterexamples):
+    the criterion models bin-count bias only. Heavy-tailed (lognormal
+    sigma=2: +10% at N=128, B=32) or highly sparse data (90% zeros:
+    -7% at N=128) can exceed the 5% target while this returns True;
+    empirically all probed adversarial cases fall below 5% from N >= 256
+    at B=32, but B=8 stays miscalibrated for heavy tails up to N~512.
+    True = "no a priori red flag", False = "certified unreliable".
+    For a data-driven check use confidence_interval."""
     scale = math.log(min(n, bins))
     if scale <= 0.0:
         return False
@@ -102,7 +112,11 @@ class BatchEntropy:
     normalized: (M,) entropy / log(min(N, B)), clamped to [0, 1].
     reliable:   (M,) bool — False where the estimate cannot be certified
                 (small N, degenerate column, N=1): a low value there means
-                "not estimable", NOT "neuron is specialized".
+                "not estimable", NOT "neuron is specialized". True means
+                "no a priori red flag", NOT a certification: see
+                reliability_threshold and MATH_DECISIONS.md D2 for the
+                documented counterexamples (sparse / heavy-tailed data at
+                N < ~256).
     reason:     (M,) uint8 codes into REASON_LABELS.
 
     NO stderr field: the closed-form (Basharin) stderr was removed after
@@ -231,10 +245,18 @@ def confidence_interval(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
     Cost: n_boot full histogram passes over the input — call on demand,
     not per tracked batch (this is why BatchEntropy carries no stderr and
     why this function takes raw activations, not a BatchEntropy: the CI is
-    not derivable from counts alone). Coverage validated for N >= 200.
-    Degenerate columns yield zero-width intervals — a documented blind
-    spot: the `reliable` flag of batch_wise_entropy signals those, the CI
-    cannot.
+    not derivable from counts alone).
+
+    Validity domain (adversarial review, MATH_DECISIONS.md D4): coverage
+    is ">= 85%, conservative", not exact 95% (measured 86-100% across the
+    validated grid), for N >= 200 — the reliable flag's N >= 90 does NOT
+    transfer to the CI on sparse or heavily skewed data. Under extreme
+    sparsity (>90% of mass in one bin) the floor rises to N ~ 400; this
+    function detects that from the histogram and warns. Degenerate
+    columns (and degenerate bootstrap replicates, which do occur on
+    sparse data) use the H=0 convention; a fully degenerate column yields
+    a zero-width interval — a documented blind spot: the `reliable` flag
+    of batch_wise_entropy signals those, the CI cannot.
     """
     if not 0.0 < level < 1.0:
         raise ValueError("level must be in (0, 1)")
@@ -248,6 +270,14 @@ def confidence_interval(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
         counts, degenerate = _quantile_hist_counts(
             x, bins, q_lo, q_hi, value_range)
         est = _miller_madow(counts, n, degenerate)
+        p_max = counts.max(dim=1).values / max(n, 1)
+        if n < 400 and bool((p_max > 0.9).any()):
+            warnings.warn(
+                "entropylens.confidence_interval: >90% of the mass of at "
+                "least one column sits in a single bin and N < 400; under "
+                "this sparsity the CI coverage was measured at 83% at "
+                "N=200 (below the 85% floor), recovering only from "
+                "N ~ 400 (MATH_DECISIONS.md D4).")
         hs = torch.empty(n_boot, m)
         for r in range(n_boot):
             ridx = torch.randint(0, n, (n,), generator=generator)
@@ -256,4 +286,10 @@ def confidence_interval(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
             hs[r] = _miller_madow(c_r, n, d_r)
         z = float(torch.special.ndtri(torch.tensor(0.5 + level / 2.0)))
         half = z * hs.std(dim=0)
-        return est, (est - half).clamp(min=0.0), est + half
+        # the estimand H_pop is bounded by log(min(N,B)) (D6 proof), so
+        # truncating the interval to that bound never lowers coverage;
+        # keep hi >= est so ordering survives when H_MM itself exceeds
+        # the bound (Miller-Madow overshoot at the ceiling, D2)
+        bound = math.log(min(n, bins)) if min(n, bins) > 1 else 0.0
+        hi = torch.maximum((est + half).clamp(max=bound), est)
+        return est, (est - half).clamp(min=0.0), hi

@@ -136,9 +136,51 @@ reliable  ⟺  (B - 1) / (2N)  ≤  0.05 · log(min(N, B))
 cioè: il campione è affidabile quando il modulo *worst-case* del bias del
 primo ordine (che si ha con K=B) non supera il 5% della scala di
 normalizzazione. Per B=32: N ≥ 90. Il criterio usa B−1 (non K̂−1) per essere
-valutabile a priori, indipendente dai dati. Evidenza exp2: a N=32 e N=50 il
-flag scatta e la deviazione senza correzione è effettivamente 13.8% / 8.6%;
-da N=128 in su il flag è verde e la deviazione corretta è ≤0.34%.
+valutabile a priori, indipendente dai dati. Evidenza exp2 (su N(0,1)): a
+N=32 e N=50 il flag scatta e la deviazione senza correzione è effettivamente
+13.8% / 8.6%; da N=128 in su il flag è verde e la deviazione corretta è
+≤0.34%.
+
+**Portata del criterio (da verifica avversaria, celle confermate a 400
+seed): condizione NECESSARIA, NON sufficiente.** Il criterio modella solo
+il bias da conteggio dei bin; due meccanismi reali gli sono invisibili e
+producono `reliable=True` con errore oltre il 5%:
+
+| distribuzione | B | N | flag | dev. media H_norm |
+|---|---|---|---|---|
+| lognormale σ=2 | 32 | 96–128 | verde | **+10.3 … +11.8%** |
+| lognormale σ=2 | 32 | 200 | verde | **+7.96%** |
+| zero-inflated 90% (ReLU "morta" + Exp(1)) | 32 | 128 | verde | **−7.43%** |
+| zero-inflated 85% (half-normal) | 32 | 128 | verde | −6.77% |
+| lognormale σ=2 | 8 | 96 / 200 / 512 | verde | **+30.2% / +16.8% / +5.1%** |
+
+Meccanismi: (a) sparsità estrema → nei bin occupati Np_k ≪ 1 e il bias reale
+supera di molto la correzione (K̂−1)/(2N) → sotto-stima residua; (b) code
+pesanti → il quantile campionario Q(0.99) sotto-stima sistematicamente
+quello di popolazione a N~100 → range compresso → sovra-stima. Piani
+empirici sicuri dai probe (400 seed): a B=32 tutti i casi avversari provati
+scendono sotto il 5% da **N ≥ 256**; a **B=8 il criterio è mis-calibrato**
+per code pesanti fino a N≈512 (la scala log 8 è piccola rispetto al rumore
+dei bordi). Lato conservativo (flag rosso con stima corretta entro il 5%,
+es. B=128 a N=128–261): sistematico ma nella direzione sicura — accettato.
+
+Semantica onesta del flag, riflessa nelle docstring: `False` = "certificato
+inaffidabile"; `True` = "**nessun segnale d'allarme a priori** dal modello
+di bias sui conteggi", NON una certificazione per distribuzioni arbitrarie
+(nessun criterio indipendente dai dati può esserlo: la deviazione dipende
+da coda/atomi ignoti a priori). Mitigazioni documentate per l'utente:
+N ≥ 256, `value_range` fisso, o il CI bootstrap (D4) come verifica
+data-driven. Il caso zero-inflated 90% a N=128 è congelato come test di
+regressione della limitazione (`tests/test_reliability_limitations.py`).
+*Punto aperto segnalato all'utente (non deciso in autonomia, regola 05):
+alzare la soglia di default è un trade-off senza risposta univoca.*
+
+**Cecità del clamp quantificata (da verifica avversaria):** vicino al
+soffitto, due campioni realizzabili a N=96/B=32 con entropie plug-in
+distanti il 4.15% producono entrambi H_norm = 1.0000 esatto; l'ampiezza
+della zona cieca è ≈ (B−1)/(2N)/log B, cioè esattamente il 5% alla soglia
+minima di affidabilità N=90. Resta una comodità pratica dichiarata; chi
+deve distinguere valori al soffitto usi `entropy` (nats) non normalizzata.
 
 Ogni risultato batch-wise porta con sé `reliable` e una `reason` quando
 False (`"N < N_min(B)"`, `"degenerate"`, `"N = 1"`). Distingue "entropia
@@ -247,12 +289,35 @@ l'incertezza si ottiene on demand con `confidence_interval(activations,
 un'analisi esplicita sull'attivazione che l'utente passa, non un
 sottoprodotto automatico del tracking.
 
-**Dominio di validità dichiarato:** copertura verificata per N ≥ 200
-(exp4b); sotto N_min(B)=90 il flag `reliable` scatta comunque. **Punto
-cieco documentato (invariato da exp4):** su un campione degenere tutti i
-replicati sono identici → sd_boot = 0 → CI di ampiezza nulla, "certezza"
-spuria. Il flag di affidabilità NON è sostituibile dall'incertezza: sono
-complementari.
+**Dominio di validità dichiarato (raffinato da seconda verifica avversaria
+del metodo scelto, 8 distribuzioni × N ∈ {100,128,200,1000,5000}, fino a
+2000 replicazioni sulle celle critiche):**
+
+- La copertura va letta come "**≥ 85%, conservativa**", non 95% esatto:
+  misurata 86–100% sulla griglia validata, con pattern di miss unilaterali
+  (dati sparsi: miss verso l'alto, bias/sd fino a −0.48; lognormale: verso
+  il basso, +0.29). Su uniforme sovra-copre (sd_boot/sd_reale ≈ 1.7).
+- Piano di validità **N ≥ 200** — il flag `reliable=True` a N ≥ 90 NON si
+  trasferisce al CI: su dati sparsi/asimmetrici a N=100–128 la copertura
+  scende a 80.8–83.3%.
+- **Sparsità estrema (>90% della massa in un bin): piano N ≈ 400** — a
+  95% di zeri e N=200 la copertura è 83.3% ± 0.6 (viola il gate), recupera
+  da N≈350–400. Rilevabile a runtime dall'istogramma stesso:
+  `confidence_interval` emette un warning quando p_max > 0.9 e N < 400.
+- L'intervallo è **troncato a [0, log(min(N,B))]**: su dati quasi uniformi
+  il limite superiore grezzo superava il massimo teorico nel ~100% delle
+  run; il troncamento a un bound che contiene l'estimando non riduce mai la
+  copertura (mantiene hi ≥ H_MM per l'overshoot Miller-Madow al soffitto).
+- I replicati bootstrap possono essere degeneri su dati sparsi reali
+  (0.7% a 95% di zeri, N=200): la libreria usa la convenzione H=0 (stessa
+  di D5), non un errore.
+- t di Student (df=3), lognormale σ=1.5, bimodale: PASS (87.5–96%); la
+  closed-form sulle stesse celle collassa a 37–58% — conferma il rigetto.
+
+**Punto cieco documentato (invariato da exp4):** su un campione degenere
+tutti i replicati sono identici → sd_boot = 0 → CI di ampiezza nulla,
+"certezza" spuria. Il flag di affidabilità NON è sostituibile
+dall'incertezza: sono complementari.
 
 **Per l'entropia per-esempio non esiste stderr campionario**: per ogni
 esempio è una funzione deterministica del vettore di attivazione, non una
