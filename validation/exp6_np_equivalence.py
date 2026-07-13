@@ -8,6 +8,7 @@ tests/test_core_np_equivalence.py.
 
 Gate:
   G1  counts bitwise-uguali e maschera degenerate identica su tutti i casi
+  G1b counts bitwise e |dH| <= 1e-5 anche sul ramo value_range (range fisso)
   G2  |H_np - H_torch| <= 1e-5 nats; |norm_np - norm_torch| <= 5e-6
       (5e-6 ~= 1e-5 / log 8: coerente col gate su H alla scala minima B=8)
   G3  reliable e reason identici (uint8/bool per elemento)
@@ -37,6 +38,9 @@ from entropylens import core
 
 # ---------------------------------------------------------------------------
 # CANDIDATO NUMPY (destinazione: entropylens/core_np.py, verbatim)
+# NB per la copia: portare anche `import math` e `import numpy as np`
+# dall'header di questo script (qui stanno sopra il banner); NON portare
+# `import torch` / `sys` / `Path`, che servono solo all'harness.
 # ---------------------------------------------------------------------------
 from dataclasses import dataclass
 from statistics import NormalDist
@@ -282,7 +286,7 @@ for seed in range(5):
                 if not np.array_equal(bt.reason.numpy(), bn.reason):
                     check(f"G3 reason {dist} N={n} B={bins} s={seed}",
                           False, "reason differs")
-check("G1 counts+degenerate", "G1" not in "".join(failures),
+check("G1 counts+degenerate", not any(f.startswith("G1 ") for f in failures),
       "bitwise-identical across all cases")
 check("G2 |dH| <= 1e-5", max_dh <= 1e-5, f"max |dH| = {max_dh:.2e}")
 check("G2 |dnorm| <= 5e-6", max_dnorm <= 5e-6, f"max = {max_dnorm:.2e}")
@@ -306,6 +310,26 @@ for seed in range(5):
         dpe = float(np.nanmax(np.abs(pt.entropy.numpy() - pn.entropy)))
         max_dpe = max(max_dpe, dpe)
 check("G4 |dH| <= 1e-6", max_dpe <= 1e-6, f"max |dH| = {max_dpe:.2e}")
+
+print("=== G1b: value_range (fixed-range) branch equivalence ===")
+vr_fail_before = len(failures)
+for seed in range(3):
+    g = torch.Generator().manual_seed(300 + seed)
+    xt = torch.randn(256, 8, generator=g)
+    xn = xt.numpy()
+    for bins in (8, 32):
+        ct, dt = core._quantile_hist_counts(
+            xt.float(), bins, 0.01, 0.99, value_range=(-3.0, 3.0))
+        cn, dn = _quantile_hist_counts(
+            xn.astype(np.float32), bins, 0.01, 0.99, value_range=(-3.0, 3.0))
+        if not (np.array_equal(ct.numpy(), cn) and np.array_equal(dt.numpy(), dn)):
+            check(f"G1b counts value_range B={bins} s={seed}", False, "differ")
+        bt = core.batch_wise_entropy(xt, bins=bins, value_range=(-3.0, 3.0))
+        bn = np_batch_wise_entropy(xn, bins=bins, value_range=(-3.0, 3.0))
+        if float(np.nanmax(np.abs(bt.entropy.numpy() - bn.entropy))) > 1e-5:
+            check(f"G1b entropy value_range B={bins} s={seed}", False, "dH > 1e-5")
+check("G1b value_range branch", len(failures) == vr_fail_before,
+      "fixed-range path bitwise counts + dH <= 1e-5")
 
 print("=== G5: CI statistical parity + coverage ===")
 ratios = []
