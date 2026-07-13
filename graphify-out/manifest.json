@@ -1,0 +1,177 @@
+{
+  "entropylens/__init__.py": {
+    "mtime": 1783710826.9241276,
+    "ast_hash": "9656609701495b2500dcb85347e26e2a",
+    "semantic_hash": "9656609701495b2500dcb85347e26e2a"
+  },
+  "entropylens/core.py": {
+    "mtime": 1783933717.781705,
+    "ast_hash": "9528e64abaa052932dc06d84c8dd8bcc",
+    "semantic_hash": "9528e64abaa052932dc06d84c8dd8bcc"
+  },
+  "entropylens/hooks.py": {
+    "mtime": 1783933719.6212902,
+    "ast_hash": "6a02fc11a3c70e870df35000245c45e4",
+    "semantic_hash": "6a02fc11a3c70e870df35000245c45e4"
+  },
+  "entropylens/layers.py": {
+    "mtime": 1783933721.3127782,
+    "ast_hash": "a659238b1d72816de44b50ca6ee0df4f",
+    "semantic_hash": "a659238b1d72816de44b50ca6ee0df4f"
+  },
+  "entropylens/report.py": {
+    "mtime": 1783710796.7305005,
+    "ast_hash": "6d9e51be9976f1738e9f7573440150f0",
+    "semantic_hash": "6d9e51be9976f1738e9f7573440150f0"
+  },
+  "entropylens/strategies.py": {
+    "mtime": 1783710260.9995518,
+    "ast_hash": "926cbcc452614b2c39a146cfa2655976",
+    "semantic_hash": "926cbcc452614b2c39a146cfa2655976"
+  },
+  "entropylens/viz.py": {
+    "mtime": 1783713253.3866546,
+    "ast_hash": "d853c3b611dd2c6320d548d4f02a9a0a",
+    "semantic_hash": "d853c3b611dd2c6320d548d4f02a9a0a"
+  },
+  "experiments/train_experiment.py": {
+    "mtime": 1783710932.653967,
+    "ast_hash": "36b888c3b46c6baa12404b0396a1d935",
+    "semantic_hash": "36b888c3b46c6baa12404b0396a1d935"
+  },
+  "experiments/viz_demo.py": {
+    "mtime": 1783713302.252474,
+    "ast_hash": "0253d7b30834ef771a36e412bef70308",
+    "semantic_hash": "0253d7b30834ef771a36e412bef70308"
+  },
+  "pyproject.toml": {
+    "mtime": 1783713277.6837234,
+    "ast_hash": "dbbd24082feb6d441b1fb45ac5093861",
+    "semantic_hash": "dbbd24082feb6d441b1fb45ac5093861"
+  },
+  "tests/conftest.py": {
+    "mtime": 1783710024.1441138,
+    "ast_hash": "584a8cf79099f12a8c55715a1115ca69",
+    "semantic_hash": "584a8cf79099f12a8c55715a1115ca69"
+  },
+  "tests/test_b4_core_independence.py": {
+    "mtime": 1783710863.5634472,
+    "ast_hash": "372b5d7d1637c0697cad52baf4787e39",
+    "semantic_hash": "372b5d7d1637c0697cad52baf4787e39"
+  },
+  "tests/test_core_batchwise.py": {
+    "mtime": 1783710135.0477211,
+    "ast_hash": "530c679810968b6c32178f7a83a80f64",
+    "semantic_hash": "530c679810968b6c32178f7a83a80f64"
+  },
+  "tests/test_core_histogram.py": {
+    "mtime": 1783710058.4805713,
+    "ast_hash": "7f93f675fa5eb6c54c15ddd855cc3303",
+    "semantic_hash": "7f93f675fa5eb6c54c15ddd855cc3303"
+  },
+  "tests/test_core_perexample.py": {
+    "mtime": 1783710195.354466,
+    "ast_hash": "e6afa2cbeb71f8b6b71f87f69e9c6803",
+    "semantic_hash": "e6afa2cbeb71f8b6b71f87f69e9c6803"
+  },
+  "tests/test_hooks.py": {
+    "mtime": 1783710338.8607519,
+    "ast_hash": "9fe94af226fe2b9c1762e61871f56762",
+    "semantic_hash": "9fe94af226fe2b9c1762e61871f56762"
+  },
+  "tests/test_layers.py": {
+    "mtime": 1783710750.9531007,
+    "ast_hash": "16efc84269de835f9fda3ac727811679",
+    "semantic_hash": "16efc84269de835f9fda3ac727811679"
+  },
+  "tests/test_reliability_limitations.py": {
+    "mtime": 1783710645.6871288,
+    "ast_hash": "50bc6d39ff45b9e9e3a68f4ab9d228e1",
+    "semantic_hash": "50bc6d39ff45b9e9e3a68f4ab9d228e1"
+  },
+  "tests/test_report.py": {
+    "mtime": 1783710788.3647099,
+    "ast_hash": "e4326c9bf60091efe03331baf5c6ccce",
+    "semantic_hash": "e4326c9bf60091efe03331baf5c6ccce"
+  },
+  "tests/test_strategies.py": {
+    "mtime": 1783710250.250878,
+    "ast_hash": "d8b56928e01538b4689e9ea7d12473bf",
+    "semantic_hash": "d8b56928e01538b4689e9ea7d12473bf"
+  },
+  "tests/test_uncertainty.py": {
+    "mtime": 1783710653.1549394,
+    "ast_hash": "a0907085aee9f2f9f4bc0c2778798310",
+    "semantic_hash": "a0907085aee9f2f9f4bc0c2778798310"
+  },
+  "tests/test_viz.py": {
+    "mtime": 1783713222.3751764,
+    "ast_hash": "86e9c09c3fd070a7091b82d825af4667",
+    "semantic_hash": "86e9c09c3fd070a7091b82d825af4667"
+  },
+  "validation/common.py": {
+    "mtime": 1783933757.225809,
+    "ast_hash": "e97cf9c05efc92dc44741dfe6509da95",
+    "semantic_hash": "e97cf9c05efc92dc44741dfe6509da95"
+  },
+  "validation/exp1_binning_outliers.py": {
+    "mtime": 1783933725.3146646,
+    "ast_hash": "9a993a527cd8152aac7624b2dd7457d4",
+    "semantic_hash": "9a993a527cd8152aac7624b2dd7457d4"
+  },
+  "validation/exp2_normalization.py": {
+    "mtime": 1783692464.5066218,
+    "ast_hash": "422a697555187d5f117cbf3250ed202e",
+    "semantic_hash": "422a697555187d5f117cbf3250ed202e"
+  },
+  "validation/exp3_negative_handling.py": {
+    "mtime": 1783933729.5368772,
+    "ast_hash": "a37919718f69f457cda8cf6359b6053e",
+    "semantic_hash": "a37919718f69f457cda8cf6359b6053e"
+  },
+  "validation/exp4_uncertainty.py": {
+    "mtime": 1783709723.3465464,
+    "ast_hash": "c6a078b4f062d9c6bdaa0691705afb9a",
+    "semantic_hash": "c6a078b4f062d9c6bdaa0691705afb9a"
+  },
+  "validation/exp4b_pipeline_uncertainty.py": {
+    "mtime": 1783709427.8294594,
+    "ast_hash": "3cccb4ddd553c6b16df54d4c91258f33",
+    "semantic_hash": "3cccb4ddd553c6b16df54d4c91258f33"
+  },
+  "validation/exp5_bounds.py": {
+    "mtime": 1783692635.8661335,
+    "ast_hash": "225bc3e30cebc4cf75e38d9fe58b1185",
+    "semantic_hash": "225bc3e30cebc4cf75e38d9fe58b1185"
+  },
+  ".github/workflows/tests.yml": {
+    "mtime": 1783938989.9404583,
+    "ast_hash": "49e742b8360e4f643cb46bb8f71aa367",
+    "semantic_hash": "49e742b8360e4f643cb46bb8f71aa367"
+  },
+  "EXPERIMENT_NOTES.md": {
+    "mtime": 1783933731.4274113,
+    "ast_hash": "22de01469f035e9eed4374d5648a8130",
+    "semantic_hash": "22de01469f035e9eed4374d5648a8130"
+  },
+  "MATH_DECISIONS.md": {
+    "mtime": 1783933739.4501486,
+    "ast_hash": "783d703d1e93a1ed6ab1361ce590be5b",
+    "semantic_hash": "783d703d1e93a1ed6ab1361ce590be5b"
+  },
+  "README.md": {
+    "mtime": 1783938992.4270105,
+    "ast_hash": "5b353dafe6fe3d001d34d3a9b8e2fb40",
+    "semantic_hash": "5b353dafe6fe3d001d34d3a9b8e2fb40"
+  },
+  "STATUS.md": {
+    "mtime": 1783933733.3246126,
+    "ast_hash": "6aa665ffc99ac9f58733d225f04c75cd",
+    "semantic_hash": "6aa665ffc99ac9f58733d225f04c75cd"
+  },
+  "experiments/entropy_dashboard.png": {
+    "mtime": 1783713315.61377,
+    "ast_hash": "696746df61ca26a75880e2f6e7ce929a",
+    "semantic_hash": "696746df61ca26a75880e2f6e7ce929a"
+  }
+}

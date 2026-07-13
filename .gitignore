@@ -6,3 +6,4 @@ __pycache__/
 # internal design/handoff documents - never publish
 0[0-6]_*.md
 docs/
+.graphify-out/
