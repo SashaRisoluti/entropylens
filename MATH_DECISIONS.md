@@ -340,6 +340,8 @@ non offrire uno stderr fittizio per riga.
 | tensore 4D+ (conv, C3 — decisione utente: rimandato) | funzioni core: `ValueError`; hooks/layers: il layer viene SALTATO con `warnings.warn` esplicito ("conv non validato in v1, layer ignorato") | mai emettere numeri non validati (Q4 aperto); il warning a runtime soddisfa C3; un tracker su una CNN resta utile per i layer FC |
 | input 1D a batch-wise | trattato come (N, 1) | caso monodimensionale ben definito |
 
+*Nota (2026-07-13, emersa scrivendo il mirror numpy, vedi D7): `_validate_input` del core torch controlla `isfinite` sul dtype originale e poi esegue il downcast a float32 — un float64 finito ma > ~3.4e38 supera il check e diventa silenziosamente inf nel calcolo. Gap aperto sul core torch (nessun test lo esercita); il mirror numpy rifiuta questo input. Da decidere se allineare il core torch (non deciso in autonomia, regola 05).*
+
 ---
 
 ## D6 — Dimostrazioni dei bound (A1 / A2)
@@ -407,9 +409,9 @@ strategie superstiti (`relu`, `abs`).
 
 ## D8 — Semantica di cattura per backend (E3 / E5): TF = modello ausiliario inference-mode; JAX = capture_intermediates
 
-**Scelta TF: modello ausiliario, non hook e non wrapper.** Keras non ha forward hook. `keras.Model(model.inputs[0], {name: layer.output})` condivide gli oggetti-layer con il modello utente (exp7 G4: identità su d1/d2/d3) e NON tocca il modello utente. Costo documentato: un forward aggiuntivo per osservazione, in `training=False` — con BatchNorm/Dropout le attivazioni osservate differiscono dal passo di training (exp7 G5, ancora negativa attesa). I modelli subclassed (senza `model.inputs`) non sono supportati in v1: errore esplicito, nessun fallback silenzioso.
+**Scelta TF: modello ausiliario, non hook e non wrapper.** Keras non ha forward hook. `keras.Model(model.inputs[0], {name: layer.output})` condivide gli oggetti-layer con il modello utente (exp7 G4: identità su d1/d2/d3) e NON tocca il modello utente. Costo documentato: un forward aggiuntivo per osservazione, in `training=False` — con BatchNorm/Dropout le attivazioni osservate differiscono dal passo di training (exp7 G5 — anchor negativa: l'esito atteso del gate è la DIFFERENZA, non un difetto). I modelli subclassed (senza `model.inputs`) non sono supportati in v1: errore esplicito, nessun fallback silenzioso.
 
-**Scelta JAX/Flax: capture_intermediates nello stesso forward.** Gli intermediates escono dallo stesso passo (nessun secondo forward), in una collection mutable fuori dal grad path (exp8 G3). Le attivazioni catturate dei `Dense` sono PRE-attivazione (le attivazioni flax sono funzioni, non moduli — exp8 G4): NESSUNA tabella di strategie è possibile e la per-example richiede `strategy_map` esplicita per path (coerente con D3: nessun default silenzioso). Senza strategia: solo batch-wise, senza warning (non c'è tabella da consultare; documentato). Nota strutturale (exp8 + probing): il marcatore `__call__` ricorre a OGNI livello di annidamento dei moduli, non solo alla radice — il walker dei path deve filtrarlo ricorsivamente; le foglie sono tuple-1 di array (unwrap `[0]`).
+**Scelta JAX/Flax: capture_intermediates nello stesso forward.** Gli intermediates escono dallo stesso passo (nessun secondo forward), in una collection mutable fuori dal grad path (exp8 G3). Le attivazioni catturate dei `Dense` sono PRE-attivazione (le attivazioni flax sono funzioni, non moduli — exp8 G4): NESSUNA tabella di strategie è possibile e la per-example richiede `strategy_map` esplicita per path (coerente con D3: nessun default silenzioso). Senza strategia: solo batch-wise, con warning una-tantum per path alla prima osservazione (stessa convenzione di hooks/C2: il degrado automatico non è mai silenzioso; il warning indica che la per-example richiede una voce in strategy_map). Nota strutturale (exp8 + probing): il marcatore `__call__` ricorre a OGNI livello di annidamento dei moduli, non solo alla radice — il walker dei path deve filtrarlo ricorsivamente; le foglie sono tuple-1 di array (unwrap `[0]`).
 
 **Versioni validate (non estrapolare al floor dichiarato dai pacchetti).** Gate misurati su TF 2.21.0 / Keras 3.14 e JAX 0.10.0 / Flax 0.12.7 (CPU). La coppia flax 0.8.0 + jax recente è ROTTA all'import (`from jax.experimental import maps` rimosso): i floor negli extra di pyproject devono citare coppie verificate, non minimi teorici.
 
@@ -444,4 +446,4 @@ strategie superstiti (`relu`, `abs`).
 | D9 | E3 (parte), E5 (parte) |
 
 B1–B4, D1–D3 (checklist) restano interamente a carico dell'implementazione
-e della suite di test.
+e della suite di test. Gli item E4, E6, E7 (tabella Keras, report/viz backend-agnostici, packaging/CI) non discendono da D7–D9 e restano anch'essi a carico dell'implementazione.

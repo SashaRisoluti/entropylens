@@ -30,6 +30,13 @@ limitazioni).
 | D1   | PASS  | 3          | `experiments/train_experiment.py` + `EXPERIMENT_NOTES.md`: stesso run, stimatore corretto vs difettoso — tendenza in salita confermata da entrambi (+2.1% vs +3.1%); divergono solo con outlier (exp1) |
 | D2   | PASS  | 3          | ogni item A/B ha test automatizzato nominato in questa tabella; suite riproducibile in `tests/` |
 | D3   | PASS  | 3          | 52 test passati in UN'unica esecuzione (`pytest tests/ -q`) + 6 script di validazione exit 0 nella stessa sessione |
+| E1   | TODO  | 4          | core numpy equivalente al core torch (D7) — gate congelati in `validation/exp6_np_equivalence.py`, implementazione `core_np.py` in corso |
+| E2   | TODO  | 4          | indipendenza di core_np da torch/tf/jax (D7, analogo B4) — test AST previsto |
+| E3   | TODO  | 4          | tracker TensorFlow via modello ausiliario (D8/D9) — gate congelati in `validation/exp7_tf_capture.py` |
+| E4   | TODO  | 4          | tabella strategie Keras (D3 esteso) — implementazione prevista |
+| E5   | TODO  | 4          | cattura JAX/Flax via capture_intermediates (D8/D9) — gate congelati in `validation/exp8_jax_capture.py` |
+| E6   | TODO  | 4          | report/viz backend-agnostici su record numpy — implementazione prevista |
+| E7   | TODO  | 4          | packaging extras tf/jax + job CI backends — implementazione prevista |
 
 ## Limitazioni documentate (non regressioni, congelate in test)
 
