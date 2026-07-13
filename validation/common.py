@@ -1,8 +1,8 @@
 """Candidate estimator implementations for PRE-IMPLEMENTATION validation.
 
 These are NOT the library. They exist to validate formulas numerically
-BEFORE anything is integrated into entropylens (mandated order, see
-00_START_HERE.md). The winning formulas move into entropylens/core.py;
+BEFORE anything is integrated into entropylens (the project's mandated
+order). The winning formulas move into entropylens/core.py;
 these scripts then serve as the reference for regression tests.
 
 All entropies are in NATS (natural log) throughout.

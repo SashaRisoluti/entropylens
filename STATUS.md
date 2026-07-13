@@ -1,4 +1,4 @@
-# STATUS — Registro di stato della checklist (05_ITERATION_LOOP.md)
+# STATUS — Registro di stato della checklist di uscita del progetto
 
 Ultima esecuzione completa: `pytest tests/ -q` → **52 passed** (run unico,
 D3) + `validation/exp1..exp5 + exp4b` tutti exit 0, 2026-07-10, torch

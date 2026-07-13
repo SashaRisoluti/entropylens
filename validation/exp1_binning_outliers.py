@@ -1,6 +1,6 @@
 """EXP1 (Q1 / Difetto 2 / A3): outlier robustness of binning candidates.
 
-Protocol (mirrors 02_MATH_FOUNDATIONS.md, Appendix A):
+Protocol (mirrors the documented Difetto-2 defect analysis):
   - 10 seeds, 1000 values ~ N(0,1), then append ONE outlier (1000.0).
   - Gate (A3, user-approved): mean relative change of H < 10%.
   - Baseline (min-max) must REPRODUCE the documented collapse (~99.7%),

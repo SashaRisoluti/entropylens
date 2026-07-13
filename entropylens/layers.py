@@ -1,4 +1,5 @@
-"""Drop-in activation wrappers (mode 2 of 01_PROJECT_GOAL.md).
+"""Drop-in activation wrappers (mode 2: tracking built into the
+architecture).
 
 Each wrapper applies the wrapped activation UNCHANGED and computes entropy
 on the detached output under no_grad (B2/B3). Per-example strategy comes

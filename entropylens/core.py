@@ -31,7 +31,7 @@ def _validate_input(x, fn, min_dim=1, max_dim=2):
         raise ValueError(
             f"{fn}: got a {x.dim()}D tensor; conv feature maps are unsupported "
             "in v1 (the spatial-independence assumption is not validated, see "
-            "MATH_DECISIONS.md D5 and 03_OPEN_MATH_QUESTIONS.md Q4).")
+            "MATH_DECISIONS.md D5).")
     if x.dim() < min_dim:
         raise ValueError(f"{fn}: expected at least {min_dim}D, got {x.dim()}D")
     if not x.dtype.is_floating_point:

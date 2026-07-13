@@ -1,7 +1,7 @@
 """EXP3 (Q3 / Difetto 3 / A5): negative-handling strategies.
 
-Part 1 — anchor: reproduce the EXACT numbers documented in
-02_MATH_FOUNDATIONS.md for the vector [5, -5, 0.01 x 6]:
+Part 1 — anchor: reproduce the EXACT numbers of the documented Difetto-3
+defect analysis for the vector [5, -5, 0.01 x 6]:
     shift -> 1.9064, abs -> 0.7362, relu -> 0.0856
 This proves our implementation matches the one that produced the
 documented evidence, so the defect analysis transfers.
@@ -38,7 +38,7 @@ def check(name, cond, detail):
 # ------------------------------------------------- Part 1: doc anchors
 x = torch.tensor([[5.0, -5.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]])
 expected = {"shift": 1.9064, "abs": 0.7362, "relu": 0.0856}
-print("=== Difetto 3 anchor (02_MATH_FOUNDATIONS.md) ===")
+print("=== Difetto 3 anchor (documented defect analysis) ===")
 for strat, exp_h in expected.items():
     h = float(per_example_entropy(x, strat)[0])
     check(f"anchor {strat}", abs(h - exp_h) < 5e-4,

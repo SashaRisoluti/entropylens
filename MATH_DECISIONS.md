@@ -3,8 +3,8 @@
 Prodotto dagli esperimenti in `validation/` (exp1–exp5 + exp4b, tutti PASS,
 eseguiti 2026-07-10 su torch 2.8.0+cpu, Python 3.13). Ogni decisione qui
 sotto cita l'evidenza numerica che l'ha determinata. Questo file è la
-specifica delle formule per `entropylens/core.py`; la bozza in
-`04_ARCHITECTURE_DRAFT.md` resta valida solo per la struttura dei moduli.
+specifica delle formule per `entropylens/core.py`; della bozza
+architetturale originale resta valida solo la struttura dei moduli.
 
 **Storia delle revisioni.** Prima stesura sottoposta a verifica avversaria
 multi-agente (2026-07-10). Esiti incorporati: D4 **riaperta e ridecisa**
@@ -125,7 +125,7 @@ bin può spingere H_MM sopra log(min(N,B)) (es. N=320 uniforme: H_plugin =
 log 32, correzione +0.048). Il clamp `min(1, ·)` mantiene la scala [0,1]
 richiesta da A6 al costo di una piccola distorsione al soffitto. È una
 comodità pratica, non una necessità teorica: documentata come tale
-(vincolo di 01_PROJECT_GOAL.md sulle scelte senza fondamento teorico).
+(vincolo di progetto sulle scelte senza fondamento teorico).
 
 **Criterio di affidabilità (Difetto 5 / Q2).**
 
@@ -193,7 +193,7 @@ bassa perché il comportamento è concentrato" da "stima non affidabile"
 
 **Anchor riprodotto (exp3):** sul vettore documentato
 `[5, -5, 0.01×6]`: shift→1.9064, abs→0.7362, relu→0.0856 — identici a
-`02_MATH_FOUNDATIONS.md` a 4 decimali: l'implementazione validata è la
+all'analisi documentata del difetto, a 4 decimali: l'implementazione validata è la
 stessa che ha prodotto l'evidenza del Difetto 3.
 
 **`shift` è RIMOSSO dalla libreria.** Due ragioni: (a) nessuna motivazione

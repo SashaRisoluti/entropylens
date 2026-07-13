@@ -1,4 +1,5 @@
-"""Non-invasive tracking via forward hooks (mode 1 of 01_PROJECT_GOAL.md).
+"""Non-invasive tracking via forward hooks (mode 1: observe an existing
+model without modifying it).
 
 Invariants (checklist B1/B3): the hook never modifies the output (it
 returns None) and computes everything under torch.no_grad() on detached

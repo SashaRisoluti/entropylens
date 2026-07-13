@@ -40,8 +40,8 @@ dell'entropia batch-wise durante il training — H_new +2.1% relativo
    e durata diversi: nessuna conclusione sull'ampiezza è trasferibile.
 4. **Questo è UN run sintetico**, non una legge generale: nessuna
    affermazione del tipo "l'entropia aumenta sempre durante il training"
-   è supportata (vincolo esplicito di 04_ARCHITECTURE_DRAFT.md e
-   01_PROJECT_GOAL.md sulla non-generalizzazione).
+   è supportata (vincolo esplicito di progetto sulla
+   non-generalizzazione).
 
 Item D1 della checklist: chiuso da questo confronto (stesso run, due
 stimatori, differenza di lettura documentata).
