@@ -7,17 +7,11 @@ tensors. Conv-shaped activations (>2D) are skipped with a warning (C3:
 spatial assumption unvalidated in v1, see MATH_DECISIONS.md D5).
 """
 import warnings
-from dataclasses import dataclass
 
 import torch
 
 from . import core, strategies
-
-
-@dataclass
-class LayerRecord:
-    batch: core.BatchEntropy
-    per_example: core.PerExampleEntropy | None  # None if no strategy known
+from .record import LayerRecord
 
 
 class EntropyTracker:
