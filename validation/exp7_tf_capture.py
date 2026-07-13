@@ -46,6 +46,7 @@ x = rng.standard_normal((64, 20)).astype(np.float32)
 # Keras 3: model.inputs e' una LISTA anche a input singolo; si passa
 # inputs[0] all'aux per evitare lo structure-warning ad ogni chiamata
 model = make_mlp()
+y_pre = model(x, training=False)   # baseline PRIMA della costruzione dell'aux
 aux = keras.Model(model.inputs[0],
                   {l.name: l.output for l in model.layers
                    if not isinstance(l, keras.layers.InputLayer)})
@@ -62,6 +63,9 @@ check("G4 shared variables",
 
 # --- G2
 y0 = model(x, training=False)
+check("G2 output invariant to aux creation",
+      bool(tf.reduce_all(tf.equal(y_pre, y0))),
+      "bitwise equal vs baseline taken BEFORE building the aux model")
 _ = aux(x, training=False)          # observe
 y1 = model(x, training=False)
 check("G2 user output invariant", bool(tf.reduce_all(tf.equal(y0, y1))),
