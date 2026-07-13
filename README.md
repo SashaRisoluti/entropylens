@@ -1,5 +1,7 @@
 # entropylens
 
+[![tests](https://github.com/SashaRisoluti/entropylens/actions/workflows/tests.yml/badge.svg)](https://github.com/SashaRisoluti/entropylens/actions/workflows/tests.yml)
+
 **Entropy-based statistical interpretability for PyTorch activations.**
 
 entropylens measures *statistical* properties of a network's activation
