@@ -20,6 +20,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
+# i gate G1-G3 sono bitwise: si fissa il determinismo degli op per non
+# dipendere dalla fortuna di oneDNN/thread scheduling (CI ubuntu)
+tf.config.experimental.enable_op_determinism()
+
 failures = []
 
 
@@ -56,10 +60,11 @@ for name in ("d1", "d2", "d3"):
     h = model.get_layer(name)(h)
     check(f"G1 aux == manual ({name})",
           bool(tf.reduce_all(tf.equal(outs[name], h))),
-          "bitwise equal" )
+          "bitwise equal")
 check("G4 shared variables",
-      aux.get_layer("d1").kernel is model.get_layer("d1").kernel,
-      "same variable object, no copy")
+      all(aux.get_layer(nm) is model.get_layer(nm)
+          for nm in ("d1", "d2", "d3")),
+      "same layer objects for d1/d2/d3, no copy")
 
 # --- G2
 y0 = model(x, training=False)
