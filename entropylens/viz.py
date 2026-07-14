@@ -15,6 +15,10 @@ matplotlib is imported lazily: the rest of the library works without it.
 """
 import math
 
+import numpy as np
+
+from ._compat import to_numpy as _np
+
 
 def _plt():
     try:
@@ -46,8 +50,8 @@ def layer_trend_data(source):
     """
     out = {}
     for name, recs in _records(source).items():
-        means = [float(r.batch.normalized.mean()) for r in recs]
-        fracs = [float(r.batch.reliable.float().mean()) for r in recs]
+        means = [float(_np(r.batch.normalized).mean()) for r in recs]
+        fracs = [float(_np(r.batch.reliable).mean()) for r in recs]
         out[name] = (means, fracs)
     return out
 
@@ -55,14 +59,13 @@ def layer_trend_data(source):
 def neuron_matrix(source, layer):
     """(values, reliable) numpy arrays of shape (M, steps) for one layer:
     per-neuron normalized entropy and its reliability mask."""
-    import torch
     recs = _records(source)
     if layer not in recs:
         raise KeyError(f"layer {layer!r} not tracked; "
                        f"tracked: {list(recs)}")
-    values = torch.stack([r.batch.normalized for r in recs[layer]], dim=1)
-    reliable = torch.stack([r.batch.reliable for r in recs[layer]], dim=1)
-    return values.numpy(), reliable.numpy()
+    values = np.stack([_np(r.batch.normalized) for r in recs[layer]], axis=1)
+    reliable = np.stack([_np(r.batch.reliable) for r in recs[layer]], axis=1)
+    return values, reliable
 
 
 def top_neurons(source, k=5, step=-1):
@@ -76,10 +79,12 @@ def top_neurons(source, k=5, step=-1):
     entries, excluded = [], 0
     for name, recs in _records(source).items():
         b = recs[step].batch
-        for j in range(b.normalized.numel()):
-            if bool(b.reliable[j]):
+        norm = _np(b.normalized)
+        rel = _np(b.reliable)
+        for j in range(norm.size):
+            if bool(rel[j]):
                 entries.append({"layer": name, "neuron": j,
-                                "normalized": float(b.normalized[j])})
+                                "normalized": float(norm[j])})
             else:
                 excluded += 1
     entries.sort(key=lambda e: e["normalized"], reverse=True)
