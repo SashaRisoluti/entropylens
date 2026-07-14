@@ -1,8 +1,9 @@
 # STATUS — Registro di stato della checklist di uscita del progetto
 
-Ultima esecuzione completa: `pytest tests/ -q` → **52 passed** (run unico,
-D3) + `validation/exp1..exp5 + exp4b` tutti exit 0, 2026-07-10, torch
-2.8.0+cpu, Python 3.13. Ciclo: iterazione 1 = validazione formule
+Esecuzione di riferimento delle iterazioni 1–3: `pytest tests/ -q` →
+**52 passed** (run unico, D3) + `validation/exp1..exp5 + exp4b` tutti
+exit 0, 2026-07-10, torch 2.8.0+cpu, Python 3.13 (l'ultima esecuzione
+completa è quella dell'iterazione 4, sotto). Ciclo: iterazione 1 = validazione formule
 (exp1–exp5, MATH_DECISIONS.md); iterazione 2 = verifica avversaria
 multi-agente e amendment (D4 rideciso → exp4b, D6/D1 formula corretta, D5
 riga N=0, D2 ri-scoping del flag); iterazione 3 = implementazione TDD
