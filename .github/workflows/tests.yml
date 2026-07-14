@@ -24,3 +24,23 @@ jobs:
           pip install pytest matplotlib
       - name: Run test suite
         run: pytest tests/ -q
+
+  backends:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install pytest numpy matplotlib "tensorflow-cpu>=2.16" "jax[cpu]>=0.10" "flax>=0.12"
+      - name: Run tests
+        run: pytest tests/ -q
+      - name: Validation gates
+        run: |
+          python validation/exp6_np_equivalence.py
+          python validation/exp7_tf_capture.py
+          python validation/exp8_jax_capture.py
