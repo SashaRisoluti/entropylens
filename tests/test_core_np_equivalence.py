@@ -45,6 +45,23 @@ def test_batch_wise_equivalence(dist, n, bins):
     assert bt.n == bn.n and bt.bins == bn.bins
 
 
+@pytest.mark.parametrize("bins", [8, 32])
+def test_batch_wise_equivalence_value_range(bins):
+    g = torch.Generator().manual_seed(9)
+    xt = torch.randn(256, 6, generator=g)
+    vr = (-3.0, 3.0)
+    ct, dt = core._quantile_hist_counts(
+        xt.float(), bins, 0.01, 0.99, value_range=vr)
+    cn, dn = core_np._quantile_hist_counts(
+        xt.numpy().astype(np.float32), bins, 0.01, 0.99, value_range=vr)
+    assert np.array_equal(ct.numpy(), cn)
+    assert np.array_equal(dt.numpy(), dn)
+    bt = core.batch_wise_entropy(xt, bins=bins, value_range=vr)
+    bn = core_np.batch_wise_entropy(xt.numpy(), bins=bins, value_range=vr)
+    assert np.nanmax(np.abs(bt.entropy.numpy() - bn.entropy)) <= 1e-5
+    assert np.array_equal(bt.reliable.numpy(), bn.reliable)
+
+
 @pytest.mark.parametrize("strategy", ["relu", "abs"])
 def test_per_example_equivalence(strategy):
     g = torch.Generator().manual_seed(5)

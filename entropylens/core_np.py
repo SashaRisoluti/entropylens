@@ -177,6 +177,9 @@ def confidence_interval(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
             "sparsity the CI coverage was measured at 83% at N=200 (below "
             "the 85% floor), recovering only from N ~ 400 "
             "(MATH_DECISIONS.md D4).")
+    # rng=None draws fresh OS entropy: unlike torch's generator=None (global
+    # RNG, reproducible via torch.manual_seed), NO global numpy seed can
+    # reproduce this CI — pass an explicit np.random.Generator instead (D7)
     if rng is None:
         rng = np.random.default_rng()
     hs = np.empty((n_boot, m), dtype=np.float32)
