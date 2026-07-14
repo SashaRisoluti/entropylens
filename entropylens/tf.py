@@ -9,7 +9,9 @@ Invariance (D9): the user's forward/backward never sees the tracker
 BatchNorm/Dropout behave as in inference (exp7 G5). Subclassed models
 (no symbolic model.inputs) are unsupported in v1. Known edge (v1, out of
 scope): `layer.output` raises on layers with multiple inbound nodes
-(shared layers) or multiple outputs — such models need a layer_filter.
+(shared layers) or multiple outputs — such models need a layer_filter. Nested
+keras.Model layers are skipped with a one-time warning (top-level layers only
+in v1).
 """
 import warnings
 
@@ -28,6 +30,17 @@ except ImportError as e:  # pragma: no cover
 
 
 class TFEntropyTracker:
+    """Entropy tracker for functional/Sequential Keras models.
+
+    Unlike the torch EntropyTracker (which records on every forward while
+    attached), records are appended ONLY when observe(x) is called — one
+    extra inference-mode forward per call. Memory note: one observe pass
+    materializes ALL eligible layer outputs at once (dict-output auxiliary
+    model), unlike torch hooks which see one activation at a time. Call
+    observe() outside GradientTape (it works inside, but the auxiliary
+    pass would be taped needlessly).
+    """
+
     def __init__(self, model, *, bins=32, q_lo=0.01, q_hi=0.99,
                  strategies_override=None, layer_filter=None):
         self.model = model
@@ -38,6 +51,7 @@ class TFEntropyTracker:
         self.layer_filter = layer_filter
         self.records = {}
         self._aux = None
+        self._by_name = None
         self._warned = set()
 
     def _build_aux(self):
@@ -51,6 +65,16 @@ class TFEntropyTracker:
         for layer in self.model.layers:
             if isinstance(layer, keras.layers.InputLayer):
                 continue
+            if isinstance(layer, keras.Model):
+                if layer.name not in self._warned:
+                    self._warned.add(layer.name)
+                    warnings.warn(
+                        f"entropylens: layer '{layer.name}' is a nested "
+                        f"keras.Model; v1 tracks top-level layers only and "
+                        f"cannot capture a submodel's output through the "
+                        f"auxiliary model — skipped. Track the submodel "
+                        f"with its own TFEntropyTracker if needed.")
+                continue
             if (self.layer_filter is not None
                     and not self.layer_filter(layer.name, layer)):
                 continue
@@ -61,7 +85,7 @@ class TFEntropyTracker:
         # passing the bare list makes every aux call emit a structure
         # warning when observe() receives a bare array (exp7)
         aux_inputs = inputs[0] if len(inputs) == 1 else inputs
-        return keras.Model(aux_inputs, outputs)
+        return keras.Model(aux_inputs, outputs, name="entropylens_aux")
 
     def _strategy(self, name, layer):
         if name in self.overrides:
@@ -84,8 +108,9 @@ class TFEntropyTracker:
         """One inference-mode observation pass; appends one record per layer."""
         if self._aux is None:
             self._aux = self._build_aux()
+            self._by_name = {l.name: l for l in self.model.layers}
         outs = self._aux(x, training=False)
-        by_name = {l.name: l for l in self.model.layers}
+        by_name = self._by_name
         for name, t in outs.items():
             act = np.asarray(t)
             if act.ndim > 2:

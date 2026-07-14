@@ -96,3 +96,63 @@ def test_conv_4d_skipped_with_warning():
         tracker.observe(x)
     assert "c1" not in tracker.records
     assert "d" in tracker.records
+
+
+def test_layer_filter_excludes_layer():
+    model, x = _mlp(), _x()
+    tracker = TFEntropyTracker(model, layer_filter=lambda n, l: n != "d1")
+    tracker.observe(x)
+    assert "d1" not in tracker.records and "d2" in tracker.records
+
+
+def test_strategies_override_by_class_and_name_precedence():
+    model, x = _mlp(), _x()
+    tracker = TFEntropyTracker(model, strategies_override={
+        keras.layers.Dense: "abs", "d1": "relu"})
+    tracker.observe(x)
+    assert tracker.records["d1"][0].per_example.strategy == "relu"
+    assert tracker.records["d3"][0].per_example.strategy == "abs"
+
+
+def test_unmapped_warning_fires_once_across_observes():
+    import warnings as w
+    model, x = _mlp(), _x()
+    tracker = TFEntropyTracker(model)
+    with w.catch_warnings(record=True) as rec:
+        w.simplefilter("always")
+        tracker.observe(x)
+        tracker.observe(x)
+    msgs = [str(r.message) for r in rec
+            if "batch-wise entropy only" in str(r.message)]
+    assert len(msgs) == 1
+
+
+def test_nested_submodel_skipped_with_warning():
+    keras.utils.set_random_seed(7)
+    sub_in = keras.Input((20,))
+    sub_out = keras.layers.Dense(8, activation="relu", name="sub_d")(sub_in)
+    sub = keras.Model(sub_in, sub_out, name="feature_extractor")
+    inp = keras.Input((20,))
+    h = sub(inp)
+    out = keras.layers.Dense(2, name="head")(h)
+    model = keras.Model(inp, out)
+    tracker = TFEntropyTracker(model)
+    with pytest.warns(UserWarning, match="nested"):
+        tracker.observe(_x())
+    assert "feature_extractor" not in tracker.records
+    assert "head" in tracker.records
+
+
+def test_multi_input_model_observe():
+    keras.utils.set_random_seed(7)
+    a = keras.Input((4,), name="a")
+    b = keras.Input((4,), name="b")
+    h = keras.layers.Concatenate(name="cat")([a, b])
+    out = keras.layers.Dense(2, name="d")(h)
+    model = keras.Model([a, b], out)
+    rng = np.random.default_rng(0)
+    xa = rng.standard_normal((32, 4)).astype(np.float32)
+    xb = rng.standard_normal((32, 4)).astype(np.float32)
+    tracker = TFEntropyTracker(model)
+    tracker.observe([xa, xb])
+    assert "cat" in tracker.records and "d" in tracker.records
