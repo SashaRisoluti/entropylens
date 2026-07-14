@@ -122,6 +122,8 @@ def test_frozen_mapping_input_works():
 
 
 def test_multi_sow_warns_and_takes_first():
+    import warnings as w
+
     class Shared(nn.Module):
         @nn.compact
         def __call__(self, x):
@@ -132,9 +134,13 @@ def test_multi_sow_warns_and_takes_first():
     x = jax.random.normal(jax.random.PRNGKey(0), (32, 20))
     params = model.init(jax.random.PRNGKey(7), x)
     _, inter = capture(model, params, x)
-    tracker = JaxEntropyTracker(strategy_map={"shared": "relu"})
-    with pytest.warns(UserWarning, match="FIRST value only"):
+    tracker = JaxEntropyTracker()
+    with w.catch_warnings(record=True) as rec:
+        w.simplefilter("always")
         tracker.observe(inter)
+    msgs = [str(r.message) for r in rec]
+    assert any("FIRST value only" in m for m in msgs)
+    assert any("batch-wise entropy only" in m for m in msgs)
     assert len(tracker.records["shared"]) == 1
 
 

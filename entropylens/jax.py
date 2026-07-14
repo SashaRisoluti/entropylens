@@ -49,8 +49,8 @@ def _flatten(intermediates, _warned=None):
             if node and path:
                 name = "/".join(path)
                 if (len(node) > 1 and _warned is not None
-                        and name not in _warned):
-                    _warned.add(name)
+                        and "multisow:" + name not in _warned):
+                    _warned.add("multisow:" + name)
                     warnings.warn(
                         f"entropylens: capture '{name}' has {len(node)} "
                         f"sow'd values (module called more than once per "
