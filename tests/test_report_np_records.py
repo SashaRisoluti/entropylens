@@ -57,3 +57,14 @@ def test_top_neurons_on_np_records():
     assert len(ranked) == 3
     assert all(0.0 <= e["normalized"] <= 1.0 for e in ranked)
     assert excluded >= 0
+
+
+def test_std_and_sem_pin_ddof1():
+    import math
+    records = _np_records()
+    row = EntropyReport(records).summary()["l1"]
+    b = records["l1"][-1].batch      # summary() uses the LAST record
+    p = records["l1"][-1].per_example
+    assert row["batch_wise_normalized_std"] == float(b.normalized.std(ddof=1))
+    vals = p.normalized[p.valid]
+    assert row["per_example_sem"] == float(vals.std(ddof=1) / math.sqrt(vals.size))

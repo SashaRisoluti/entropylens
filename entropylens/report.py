@@ -5,6 +5,12 @@ per-example entropies are comparable by construction (each divided by its
 own attainable bound). Raw nats exist only behind .raw(), which returns
 each value WITH the bound it is relative to, so different scales are
 never shown side by side implicitly.
+
+Numeric note (E6 refactor): aggregation moved from torch to numpy — Bessel
+std semantics preserved (ddof=1, pinned by test), but values can differ
+from the pre-refactor torch reductions by <= 1 ulp float32 (summation
+order, same caveat class as D7); reliable_fraction now accumulates in
+float64 (strictly more accurate).
 """
 import math
 

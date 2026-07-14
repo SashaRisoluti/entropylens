@@ -124,7 +124,6 @@ def plot_neuron_heatmap(source, layer, ax=None):
     """Neurons x steps heatmap of normalized entropy for one layer;
     unreliable cells are greyed out, not colored."""
     plt = _plt()
-    import numpy as np
     values, reliable = neuron_matrix(source, layer)
     if ax is None:
         fig, ax = plt.subplots(
