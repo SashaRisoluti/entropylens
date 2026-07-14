@@ -1,12 +1,14 @@
 [project]
 name = "entropylens"
-version = "0.1.0"
-description = "Entropy-based interpretability for PyTorch activations (statistical, non-semantic)"
+version = "0.2.0"
+description = "Entropy-based interpretability for neural activations (statistical, non-semantic) - PyTorch, TensorFlow, JAX"
 requires-python = ">=3.11"
-dependencies = ["torch>=2.0"]
+dependencies = ["torch>=2.0", "numpy>=1.24"]
 
 [project.optional-dependencies]
 viz = ["matplotlib>=3.5"]
+tf = ["tensorflow>=2.16"]
+jax = ["jax>=0.10", "flax>=0.12"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
