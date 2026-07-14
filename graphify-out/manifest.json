@@ -1,8 +1,8 @@
 {
   "entropylens/__init__.py": {
-    "mtime": 1783710826.9241276,
-    "ast_hash": "9656609701495b2500dcb85347e26e2a",
-    "semantic_hash": "9656609701495b2500dcb85347e26e2a"
+    "mtime": 1784032863.2755878,
+    "ast_hash": "11120df54b45cf844302f94a6275e159",
+    "semantic_hash": "11120df54b45cf844302f94a6275e159"
   },
   "entropylens/core.py": {
     "mtime": 1783933717.781705,
@@ -10,9 +10,9 @@
     "semantic_hash": "9528e64abaa052932dc06d84c8dd8bcc"
   },
   "entropylens/hooks.py": {
-    "mtime": 1783933719.6212902,
-    "ast_hash": "6a02fc11a3c70e870df35000245c45e4",
-    "semantic_hash": "6a02fc11a3c70e870df35000245c45e4"
+    "mtime": 1784032863.2755878,
+    "ast_hash": "614afec68e1cccdcda156412b199a8a4",
+    "semantic_hash": "614afec68e1cccdcda156412b199a8a4"
   },
   "entropylens/layers.py": {
     "mtime": 1783933721.3127782,
@@ -20,9 +20,9 @@
     "semantic_hash": "a659238b1d72816de44b50ca6ee0df4f"
   },
   "entropylens/report.py": {
-    "mtime": 1783710796.7305005,
-    "ast_hash": "6d9e51be9976f1738e9f7573440150f0",
-    "semantic_hash": "6d9e51be9976f1738e9f7573440150f0"
+    "mtime": 1784032863.2755878,
+    "ast_hash": "f7a804e8bd2b90069b15471a50271e86",
+    "semantic_hash": "f7a804e8bd2b90069b15471a50271e86"
   },
   "entropylens/strategies.py": {
     "mtime": 1783710260.9995518,
@@ -30,9 +30,9 @@
     "semantic_hash": "926cbcc452614b2c39a146cfa2655976"
   },
   "entropylens/viz.py": {
-    "mtime": 1783713253.3866546,
-    "ast_hash": "d853c3b611dd2c6320d548d4f02a9a0a",
-    "semantic_hash": "d853c3b611dd2c6320d548d4f02a9a0a"
+    "mtime": 1784032863.2755878,
+    "ast_hash": "54402bb06f3941d4219ecd8b78499338",
+    "semantic_hash": "54402bb06f3941d4219ecd8b78499338"
   },
   "experiments/train_experiment.py": {
     "mtime": 1783710932.653967,
@@ -45,9 +45,9 @@
     "semantic_hash": "0253d7b30834ef771a36e412bef70308"
   },
   "pyproject.toml": {
-    "mtime": 1783713277.6837234,
-    "ast_hash": "dbbd24082feb6d441b1fb45ac5093861",
-    "semantic_hash": "dbbd24082feb6d441b1fb45ac5093861"
+    "mtime": 1784032863.2755878,
+    "ast_hash": "c987718a3de7fda779a7d90c0cfa10c1",
+    "semantic_hash": "c987718a3de7fda779a7d90c0cfa10c1"
   },
   "tests/conftest.py": {
     "mtime": 1783710024.1441138,
@@ -145,9 +145,9 @@
     "semantic_hash": "225bc3e30cebc4cf75e38d9fe58b1185"
   },
   ".github/workflows/tests.yml": {
-    "mtime": 1783938989.9404583,
-    "ast_hash": "49e742b8360e4f643cb46bb8f71aa367",
-    "semantic_hash": "49e742b8360e4f643cb46bb8f71aa367"
+    "mtime": 1784032863.2596984,
+    "ast_hash": "30b7f80d487cd0ead26f725431a1c22d",
+    "semantic_hash": "30b7f80d487cd0ead26f725431a1c22d"
   },
   "EXPERIMENT_NOTES.md": {
     "mtime": 1783933731.4274113,
@@ -155,23 +155,98 @@
     "semantic_hash": "22de01469f035e9eed4374d5648a8130"
   },
   "MATH_DECISIONS.md": {
-    "mtime": 1783933739.4501486,
-    "ast_hash": "783d703d1e93a1ed6ab1361ce590be5b",
-    "semantic_hash": "783d703d1e93a1ed6ab1361ce590be5b"
+    "mtime": 1784032863.2596984,
+    "ast_hash": "32df6a750aeb4a6c89b523bd6b51dbe2",
+    "semantic_hash": "32df6a750aeb4a6c89b523bd6b51dbe2"
   },
   "README.md": {
-    "mtime": 1783938992.4270105,
-    "ast_hash": "5b353dafe6fe3d001d34d3a9b8e2fb40",
-    "semantic_hash": "5b353dafe6fe3d001d34d3a9b8e2fb40"
+    "mtime": 1784032863.2596984,
+    "ast_hash": "3b7b712a04e90bdb237235379a37494c",
+    "semantic_hash": "3b7b712a04e90bdb237235379a37494c"
   },
   "STATUS.md": {
-    "mtime": 1783933733.3246126,
-    "ast_hash": "6aa665ffc99ac9f58733d225f04c75cd",
-    "semantic_hash": "6aa665ffc99ac9f58733d225f04c75cd"
+    "mtime": 1784032863.2596984,
+    "ast_hash": "42157609e5073e2056e2a2fde3e8251b",
+    "semantic_hash": "42157609e5073e2056e2a2fde3e8251b"
   },
   "experiments/entropy_dashboard.png": {
     "mtime": 1783713315.61377,
     "ast_hash": "696746df61ca26a75880e2f6e7ce929a",
     "semantic_hash": "696746df61ca26a75880e2f6e7ce929a"
+  },
+  "entropylens/_compat.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "9bb2f1efc4a8db61228ab05b384077a3",
+    "semantic_hash": "9bb2f1efc4a8db61228ab05b384077a3"
+  },
+  "entropylens/core_np.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "8776921188451d8bf2c71c8fd247d3e0",
+    "semantic_hash": "8776921188451d8bf2c71c8fd247d3e0"
+  },
+  "entropylens/jax.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "e8f1c60ca3c034fd03808346ea5244c4",
+    "semantic_hash": "e8f1c60ca3c034fd03808346ea5244c4"
+  },
+  "entropylens/record.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "350f59289b22c75a6ffa1f4d029d077f",
+    "semantic_hash": "350f59289b22c75a6ffa1f4d029d077f"
+  },
+  "entropylens/strategies_tf.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "3ccb39e28702e1504414a0c5089c24b5",
+    "semantic_hash": "3ccb39e28702e1504414a0c5089c24b5"
+  },
+  "entropylens/tf.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "f1eab81dbd9980ec6897d84c79b72b1c",
+    "semantic_hash": "f1eab81dbd9980ec6897d84c79b72b1c"
+  },
+  "tests/test_b5_np_core_independence.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "920a51e84c2ff08b951c48a227bda611",
+    "semantic_hash": "920a51e84c2ff08b951c48a227bda611"
+  },
+  "tests/test_core_np_equivalence.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "b0aaf70668a5ef4bcb60adf37ebe3c8a",
+    "semantic_hash": "b0aaf70668a5ef4bcb60adf37ebe3c8a"
+  },
+  "tests/test_jax_tracker.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "d0a212bf2189eef36868782d6bbb415a",
+    "semantic_hash": "d0a212bf2189eef36868782d6bbb415a"
+  },
+  "tests/test_report_np_records.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "011a79c2f95da7331043aa23f131c051",
+    "semantic_hash": "011a79c2f95da7331043aa23f131c051"
+  },
+  "tests/test_strategies_tf.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "a207a5137de2002302510264e51a0d17",
+    "semantic_hash": "a207a5137de2002302510264e51a0d17"
+  },
+  "tests/test_tf_tracker.py": {
+    "mtime": 1784032863.2755878,
+    "ast_hash": "6d1a7051b0e3413c5bc9f3452ead089c",
+    "semantic_hash": "6d1a7051b0e3413c5bc9f3452ead089c"
+  },
+  "validation/exp6_np_equivalence.py": {
+    "mtime": 1784032863.2913177,
+    "ast_hash": "bf2d713cef2bd07d13e95eb046bd2bcb",
+    "semantic_hash": "bf2d713cef2bd07d13e95eb046bd2bcb"
+  },
+  "validation/exp7_tf_capture.py": {
+    "mtime": 1784032863.2930937,
+    "ast_hash": "173a27e711b4e84619d825f03c7c9943",
+    "semantic_hash": "173a27e711b4e84619d825f03c7c9943"
+  },
+  "validation/exp8_jax_capture.py": {
+    "mtime": 1784032863.2930937,
+    "ast_hash": "d28612184b508add613bb2a16d89d15d",
+    "semantic_hash": "d28612184b508add613bb2a16d89d15d"
   }
 }
