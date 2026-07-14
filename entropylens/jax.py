@@ -13,6 +13,7 @@ Structure notes (exp8): '__call__' markers recur at every nesting level
 and are stripped recursively; leaves are 1-tuples of arrays (first element
 taken; multi-output modules are out of v1 scope).
 """
+import collections.abc
 import warnings
 
 import numpy as np
@@ -36,21 +37,29 @@ def capture(model, variables, x, **apply_kwargs):
     return y, mutated["intermediates"]
 
 
-def _flatten(intermediates):
+def _flatten(intermediates, _warned=None):
     """{'Dense_0': {'__call__': (arr,)}} -> {'Dense_0': arr}; root skipped."""
     flat = {}
 
     def walk(node, path):
-        if isinstance(node, dict):
+        if isinstance(node, collections.abc.Mapping):
             for k, v in node.items():
                 walk(v, path if k == "__call__" else path + (k,))
         elif isinstance(node, tuple):
-            if node and path:   # root __call__ arrives with empty path
-                flat["/".join(path)] = node[0]
+            if node and path:
+                name = "/".join(path)
+                if (len(node) > 1 and _warned is not None
+                        and name not in _warned):
+                    _warned.add(name)
+                    warnings.warn(
+                        f"entropylens: capture '{name}' has {len(node)} "
+                        f"sow'd values (module called more than once per "
+                        f"forward?); tracking the FIRST value only in v1.")
+                flat[name] = node[0]
         elif path:
             flat["/".join(path)] = node
 
-    walk(dict(intermediates), ())
+    walk(intermediates, ())
     return flat
 
 
@@ -61,11 +70,19 @@ class JaxEntropyTracker:
     capture_intermediates collection): records are appended per observe()
     call, one per 2D captured array. Per-example entropy requires an
     explicit strategy_map entry per path; without it the path is tracked
-    batch-wise only (one-time warning per path).
+    batch-wise only (one-time warning per path). Records accumulate by
+    path name across observe() calls; feeding intermediates from a
+    different model merges by name (inherent to the model-free design —
+    caller's responsibility).
     """
 
     def __init__(self, *, strategy_map=None, bins=32, q_lo=0.01, q_hi=0.99):
         self.strategy_map = dict(strategy_map or {})
+        for k, v in self.strategy_map.items():
+            if v not in ("relu", "abs"):
+                raise ValueError(
+                    f"strategy_map[{k!r}] = {v!r}: choose 'relu' or 'abs' "
+                    f"('shift' was removed, MATH_DECISIONS.md D3)")
         self.bins = bins
         self.q_lo = q_lo
         self.q_hi = q_hi
@@ -75,7 +92,7 @@ class JaxEntropyTracker:
     def observe(self, intermediates):
         """Record entropy for every 2D captured array; appends one record
         per path per call."""
-        for name, arr in _flatten(intermediates).items():
+        for name, arr in _flatten(intermediates, self._warned).items():
             act = np.asarray(arr)
             if act.ndim > 2:
                 if name not in self._warned:

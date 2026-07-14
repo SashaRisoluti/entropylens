@@ -109,3 +109,53 @@ def test_nested_module_paths_flatten_recursively():
     assert "Inner_0" in tracker.records
     assert "Dense_0" in tracker.records          # Outer's own Dense
     assert "__call__" not in tracker.records
+
+
+def test_frozen_mapping_input_works():
+    from flax.core import freeze
+    model, params, x = _setup()
+    _, inter = capture(model, params, x)
+    tracker = JaxEntropyTracker(strategy_map={"Dense_0": "relu",
+                                              "Dense_1": "relu"})
+    tracker.observe(freeze(inter))
+    assert set(tracker.records) == {"Dense_0", "Dense_1"}
+
+
+def test_multi_sow_warns_and_takes_first():
+    class Shared(nn.Module):
+        @nn.compact
+        def __call__(self, x):
+            d = nn.Dense(20, name="shared")
+            return d(d(x))
+
+    model = Shared()
+    x = jax.random.normal(jax.random.PRNGKey(0), (32, 20))
+    params = model.init(jax.random.PRNGKey(7), x)
+    _, inter = capture(model, params, x)
+    tracker = JaxEntropyTracker(strategy_map={"shared": "relu"})
+    with pytest.warns(UserWarning, match="FIRST value only"):
+        tracker.observe(inter)
+    assert len(tracker.records["shared"]) == 1
+
+
+def test_invalid_strategy_rejected_in_ctor():
+    with pytest.raises(ValueError, match="relu"):
+        JaxEntropyTracker(strategy_map={"Dense_0": "gelu"})
+
+
+def test_4d_capture_skipped_with_warning():
+    class Conv(nn.Module):
+        @nn.compact
+        def __call__(self, x):
+            h = nn.Conv(4, (3, 3), name="c1")(x)
+            return nn.Dense(2, name="d")(h.reshape((x.shape[0], -1)))
+
+    model = Conv()
+    x = jax.random.normal(jax.random.PRNGKey(0), (8, 8, 8, 1))
+    params = model.init(jax.random.PRNGKey(7), x)
+    _, inter = capture(model, params, x)
+    tracker = JaxEntropyTracker(strategy_map={"d": "relu"})
+    with pytest.warns(UserWarning, match="unsupported/unvalidated in v1"):
+        tracker.observe(inter)
+    assert "c1" not in tracker.records
+    assert "d" in tracker.records
