@@ -228,6 +228,10 @@ def np_confidence_interval(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
 # ---------------------------------------------------------------------------
 # HARNESS
 # ---------------------------------------------------------------------------
+from entropylens import core_np as _lib
+for _name in ("batch_wise_entropy", "per_example_entropy", "confidence_interval"):
+    assert getattr(_lib, _name), f"library core_np missing {_name}"
+
 failures = []
 
 
