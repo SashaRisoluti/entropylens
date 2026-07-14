@@ -22,19 +22,20 @@ def _ensure_tables():
         return
     from tensorflow.keras import activations, layers
 
-    _LAYER_TABLE = {
+    layer_table = {
         layers.ReLU: ("relu", "outputs are nonnegative by construction; "
                       "the strategy is a no-op"),
         layers.LeakyReLU: ("relu", "negative outputs are the input scaled "
-                           "by the leak factor: treated as 'off'; the "
-                           "discarded mass is proportional to the slope. "
-                           "For large slopes (>0.1) consider an explicit "
-                           "choice."),
+                           "by the leak factor: treated as 'off' for "
+                           "small slopes (<= 0.1). NOTE: Keras's default "
+                           "negative_slope is 0.3, which exceeds the "
+                           "threshold — strategy_for_keras raises for it, "
+                           "forcing an explicit choice (D3)."),
         layers.Softmax: ("relu", "output is already a probability "
                          "distribution; renormalization is the identity, "
                          "entropy is computed directly on it"),
     }
-    _FN_TABLE = {
+    fn_table = {
         activations.relu: ("relu", "outputs are nonnegative by "
                            "construction; the strategy is a no-op"),
         activations.relu6: ("relu", "outputs are nonnegative by "
@@ -63,8 +64,17 @@ def _ensure_tables():
     }
     # swish may alias silu in Keras 3; add defensively if distinct
     swish = getattr(activations, "swish", None)
-    if swish is not None and swish not in _FN_TABLE:
-        _FN_TABLE[swish] = _FN_TABLE[activations.silu]
+    if swish is not None and swish not in fn_table:
+        fn_table[swish] = fn_table[activations.silu]
+    hard_tanh = getattr(activations, "hard_tanh", None)
+    if hard_tanh is not None:
+        fn_table[hard_tanh] = ("abs", "sign is a direction, magnitude is "
+                               "the intensity (same argument as Tanh; "
+                               "torch-table parity: Hardtanh)")
+    # Assign the guard variable (_LAYER_TABLE) LAST so a racing thread
+    # never observes a half-initialized pair.
+    _FN_TABLE = fn_table
+    _LAYER_TABLE = layer_table
 
 
 def strategy_for_keras(layer):
@@ -74,6 +84,15 @@ def strategy_for_keras(layer):
     the default linear activation) — no silent default (D3).
     """
     _ensure_tables()
+    from tensorflow.keras import layers
+    if isinstance(layer, layers.LeakyReLU) and layer.negative_slope > 0.1:
+        raise UnmappedActivationError(
+            f"Keras LeakyReLU with negative_slope="
+            f"{layer.negative_slope:g} (> 0.1; note Keras's DEFAULT is "
+            f"0.3, unlike torch's 0.01): the discarded negative mass is "
+            f"too large for the 'relu' default (D3) — pass an explicit "
+            f"strategy ('relu' = negatives mean 'off', 'abs' = sign is a "
+            f"direction).")
     entry = _LAYER_TABLE.get(type(layer))
     if entry is None:
         act = getattr(layer, "activation", None)

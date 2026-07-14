@@ -11,7 +11,8 @@ from entropylens.strategies import UnmappedActivationError  # noqa: E402
 
 def test_layer_class_mappings():
     assert strategies_tf.strategy_for_keras(keras.layers.ReLU()) == "relu"
-    assert strategies_tf.strategy_for_keras(keras.layers.LeakyReLU()) == "relu"
+    assert strategies_tf.strategy_for_keras(
+        keras.layers.LeakyReLU(negative_slope=0.05)) == "relu"
     assert strategies_tf.strategy_for_keras(keras.layers.Softmax()) == "relu"
 
 
@@ -26,6 +27,27 @@ def test_activation_attribute_mappings():
         keras.layers.Activation("softsign")) == "abs"
     assert strategies_tf.strategy_for_keras(
         keras.layers.Dense(4, activation="gelu")) == "relu"
+
+
+def test_leaky_relu_default_slope_raises():
+    with pytest.raises(UnmappedActivationError, match="negative_slope"):
+        strategies_tf.strategy_for_keras(keras.layers.LeakyReLU())
+
+
+def test_hard_tanh_maps_to_abs():
+    assert strategies_tf.strategy_for_keras(
+        keras.layers.Dense(4, activation="hard_tanh")) == "abs"
+
+
+def test_module_import_does_not_touch_tensorflow():
+    import subprocess
+    import sys
+    from pathlib import Path
+    code = ("import sys; import entropylens.strategies_tf; "
+            "raise SystemExit(1 if 'tensorflow' in sys.modules else 0)")
+    r = subprocess.run([sys.executable, "-c", code],
+                       cwd=str(Path(__file__).resolve().parents[1]))
+    assert r.returncode == 0
 
 
 def test_linear_dense_is_unmapped():
