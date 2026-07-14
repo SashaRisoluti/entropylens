@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/SashaRisoluti/entropylens/actions/workflows/tests.yml/badge.svg)](https://github.com/SashaRisoluti/entropylens/actions/workflows/tests.yml)
 
-**Entropy-based statistical interpretability for PyTorch activations.**
+**Entropy-based statistical interpretability for neural activations — PyTorch, TensorFlow, JAX.**
 
 entropylens measures *statistical* properties of a network's activation
 distributions — how concentrated or spread out they are — while a model
@@ -121,6 +121,57 @@ There are also drop-in wrappers if you prefer building tracking into the
 architecture: `EntropyReLU`, `EntropyTanh`, `EntropyGELU`, … and a generic
 `EntropyActivation(module, strategy=...)` — same bitwise guarantees.
 
+## TensorFlow and JAX (experimental)
+
+Same estimators (MATH_DECISIONS.md D1–D6), same record schema, same report
+and viz — via a numpy core validated for equivalence against the torch core
+(D7). Install: `pip install 'entropylens[tf]'` or `pip install 'entropylens[jax]'`.
+
+### TensorFlow / Keras
+
+```python
+from entropylens.tf import TFEntropyTracker
+
+tracker = TFEntropyTracker(model)          # functional or Sequential
+for epoch in range(epochs):
+    train_one_epoch(model)
+    tracker.observe(x_probe)               # extra inference-mode pass
+print(tracker.report().summary())
+```
+
+Your model is **never modified** — observation runs a weight-sharing
+auxiliary model (D8), so training outputs and gradients are invariant *by
+construction* (exp7). Caveats: observation is inference-mode (BatchNorm /
+Dropout differ from the training pass); subclassed models and nested
+submodels are unsupported in v1 (no symbolic layer outputs / top-level
+layers only).
+
+### JAX / Flax
+
+```python
+from entropylens.jax import JaxEntropyTracker, capture
+
+tracker = JaxEntropyTracker(strategy_map={"Dense_0": "relu"})
+y, intermediates = capture(model, params, x)   # same forward pass
+tracker.observe(intermediates)
+print(tracker.report().summary())
+```
+
+Captured `Dense` outputs are **pre-activation** (Flax activations are
+functions), so per-example entropy requires an explicit `strategy_map` —
+no table is possible, and no silent default is ever applied (D3/D8);
+unmapped paths are tracked batch-wise only, with a one-time warning.
+Outputs and gradients are bitwise-invariant with and without capture —
+including under `jax.jit` (exp8; empirical scoping in D9).
+
+### Guarantees per backend (D9)
+
+| Backend | Invariance |
+|---|---|
+| PyTorch | B1/B2/B3 bitwise (hooks), unchanged |
+| TensorFlow | user model untouched by construction; frozen bitwise in exp7 |
+| JAX/Flax | outputs/grads bitwise with and without capture, incl. under jit (exp8; see D9) |
+
 ## Uncertainty
 
 ```python
@@ -193,21 +244,29 @@ Full specification with proofs, decision evidence and revision history
 (in Italian): [`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
 registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
-of the final gate, alongside the 58-test suite).
+of the final gate, alongside the 142-test suite).
 
 ## Project layout
 
 ```
 entropylens/
-  core.py         pure tensor math (no torch.nn — enforced by test)
-  strategies.py   activation → negative-handling strategy table
-  hooks.py        EntropyTracker (forward hooks, non-invasive)
-  layers.py       drop-in Entropy* activation wrappers
-  report.py       normalized-by-default aggregation
-  viz.py          matplotlib dashboards (optional extra)
-validation/       frozen pre-implementation numeric evidence (exp1–exp5, exp4b)
-experiments/      training experiment + viz demo
-tests/            full suite (52 core + 6 viz)
+  core.py           pure tensor math (no torch.nn — enforced by test)
+  core_np.py        numpy mirror of core.py, validated equivalent (D7)
+  record.py         shared LayerRecord (framework-neutral)
+  _compat.py        to_numpy() conversion helpers
+  strategies.py     activation → negative-handling strategy table
+  strategies_tf.py  Keras activation → strategy table (D3 extended)
+  hooks.py          EntropyTracker (forward hooks, non-invasive)
+  layers.py         drop-in Entropy* activation wrappers
+  tf.py             TFEntropyTracker (Keras, weight-sharing aux model)
+  jax.py            JaxEntropyTracker (Flax capture_intermediates)
+  report.py         normalized-by-default aggregation
+  viz.py            matplotlib dashboards (optional extra)
+validation/         frozen pre-implementation numeric evidence (exp1–exp5,
+                    exp4b) + backend equivalence gates: exp6 (numpy core),
+                    exp7 (TF capture), exp8 (JAX/Flax capture)
+experiments/        training experiment + viz demo
+tests/              full suite (142 tests, torch + numpy + TF + JAX)
 ```
 
 ## Out of scope in v1
