@@ -12,6 +12,7 @@ multi-agente (2026-07-10). Esiti incorporati: D4 **riaperta e ridecisa**
 bootstrap full-pipeline); D6/D1 formula del massimo winsorizzato corretta
 per quantili asimmetrici (regressa in exp1); D5 aggiunta riga N=0; D1
 aggiunti scoping del tetto H* e caveat code pesanti.
+2026-07-13: aggiunte D7–D9 (backend TF/JAX) sulla base di exp6–exp8, prima dell'implementazione (stessa disciplina validation-first di D1–D6).
 
 Tutte le entropie sono in **nats** (logaritmo naturale).
 
@@ -339,6 +340,8 @@ non offrire uno stderr fittizio per riga.
 | tensore 4D+ (conv, C3 — decisione utente: rimandato) | funzioni core: `ValueError`; hooks/layers: il layer viene SALTATO con `warnings.warn` esplicito ("conv non validato in v1, layer ignorato") | mai emettere numeri non validati (Q4 aperto); il warning a runtime soddisfa C3; un tracker su una CNN resta utile per i layer FC |
 | input 1D a batch-wise | trattato come (N, 1) | caso monodimensionale ben definito |
 
+*Nota (2026-07-13, emersa scrivendo il mirror numpy, vedi D7): `_validate_input` del core torch controlla `isfinite` sul dtype originale e poi esegue il downcast a float32 — un float64 finito ma > ~3.4e38 supera il check e diventa silenziosamente inf nel calcolo. Gap aperto sul core torch (nessun test lo esercita); il mirror numpy rifiuta questo input. Da decidere se allineare il core torch (non deciso in autonomia, regola 05).*
+
 ---
 
 ## D6 — Dimostrazioni dei bound (A1 / A2)
@@ -384,6 +387,50 @@ strategie superstiti (`relu`, `abs`).
 
 ---
 
+## D7 — Core numpy di riferimento (E1 / E2): mirror numpy del core torch, equivalenza gated
+
+**Formula adottata.** Nessuna nuova formula: D1–D6 invariate. `entropylens/core_np.py` replica le stesse operazioni in numpy float32; le uniche operazioni non bitwise-garantite sono i quantili (`np.quantile` vs `torch.quantile`, interpolazione lineare in entrambi) e l'ordine di somma nelle riduzioni.
+
+**Evidenza (exp6, torch 2.8.0+cpu / numpy 2.3.3 / Python 3.13).**
+
+| Gate | Esito |
+|------|-------|
+| G1 counts bitwise + maschera degenerate identica (6 distribuzioni × N ∈ {1,8,128,1000} × B ∈ {8,32} × 5 seed) | PASS |
+| G1b ramo value_range (range fisso): counts bitwise e \|ΔH\| ≤ 1e-5 | PASS |
+| G2 max \|ΔH\| | 4.77e-07 (gate 1e-5 nats) |
+| G2 max \|Δnormalized\| | 1.79e-07 (gate 5e-6) |
+| G3 reliable/reason identici | PASS |
+| G4 per-example max \|ΔH\| (relu e abs), posizioni NaN identiche | 7.15e-07 (gate 1e-6) |
+| G5 CI: scarto relativo medio semi-ampiezza | 0.060 (gate 10%); copertura pooled per-colonna 0.938, min colonna 0.90 su gauss N=400 (gate ≥0.85) |
+
+**Conseguenza API (documentata, non silenziosa).** Il CI numpy usa `rng: np.random.Generator` al posto di `generator: torch.Generator`: i due CI NON sono riproducibili l'uno dall'altro (RNG diversi), l'equivalenza è statistica, non bitwise. `core_np` non importa torch/tensorflow/jax (test AST E2, analogo di B4). **Divergenza documentata sulla validazione dell'input:** `core_np` valida la finitezza DOPO il cast a float32, quindi un input float64 che trabocca a inf in float32 viene rifiutato (ValueError), mentre il core torch controlla `isfinite` sul dtype originale e poi calcola silenziosamente su inf dopo il downcast — il mirror numpy è intenzionalmente più severo.
+
+---
+
+## D8 — Semantica di cattura per backend (E3 / E5): TF = modello ausiliario inference-mode; JAX = capture_intermediates
+
+**Scelta TF: modello ausiliario, non hook e non wrapper.** Keras non ha forward hook. `keras.Model(model.inputs[0], {name: layer.output})` condivide gli oggetti-layer con il modello utente (exp7 G4: identità su d1/d2/d3) e NON tocca il modello utente. Costo documentato: un forward aggiuntivo per osservazione, in `training=False` — con BatchNorm/Dropout le attivazioni osservate differiscono dal passo di training (exp7 G5 — anchor negativa: l'esito atteso del gate è la DIFFERENZA, non un difetto). I modelli subclassed (senza `model.inputs`) non sono supportati in v1: errore esplicito, nessun fallback silenzioso.
+
+**Scelta JAX/Flax: capture_intermediates nello stesso forward.** Gli intermediates escono dallo stesso passo (nessun secondo forward), in una collection mutable fuori dal grad path (exp8 G3). Le attivazioni catturate dei `Dense` sono PRE-attivazione (le attivazioni flax sono funzioni, non moduli — exp8 G4): NESSUNA tabella di strategie è possibile e la per-example richiede `strategy_map` esplicita per path (coerente con D3: nessun default silenzioso). Senza strategia: solo batch-wise, con warning una-tantum per path alla prima osservazione (stessa convenzione di hooks/C2: il degrado automatico non è mai silenzioso; il warning indica che la per-example richiede una voce in strategy_map). Nota strutturale (exp8 + probing): il marcatore `__call__` ricorre a OGNI livello di annidamento dei moduli, non solo alla radice — il walker dei path deve filtrarlo ricorsivamente; le foglie sono tuple-1 di array (unwrap `[0]`).
+
+**Versioni validate (non estrapolare al floor dichiarato dai pacchetti).** Gate misurati su TF 2.21.0 / Keras 3.14 e JAX 0.10.0 / Flax 0.12.7 (CPU). La coppia flax 0.8.0 + jax recente è ROTTA all'import (`from jax.experimental import maps` rimosso): i floor negli extra di pyproject devono citare coppie verificate, non minimi teorici.
+
+---
+
+## D9 — Portata delle garanzie di invarianza per backend (E3 / E5)
+
+| Backend | Garanzia | Evidenza |
+|---------|----------|----------|
+| PyTorch | B1/B2/B3 bitwise via hook (invariata) | test esistenti |
+| TensorFlow | modello utente MAI toccato ⇒ output e gradienti invarianti per costruzione; congelato bitwise (baseline pre-costruzione dell'aux, observe tra 3 step SGD) con `enable_op_determinism()` | exp7 G2/G3 PASS (TF 2.21.0) |
+| JAX/Flax | output e gradienti bitwise con/senza cattura, senza jit E sotto `jax.jit` (max \|d\| = 0.00e+00) | exp8 G1–G3 PASS (JAX 0.10.0 / Flax 0.12.7) |
+
+**Portata del claim jit (scoping, onestà).** Il gate G2 confronta due closure jit-compilate INDIPENDENTEMENTE (il pattern d'uso reale: forward utente vs forward strumentato), su CPU, stabile su 5 rerun consecutivi: è evidenza empirica su queste versioni, NON una garanzia del linguaggio JAX. Un bump di jaxlib/XLA può cambiare fusione/ordine delle riduzioni: rieseguire exp8 ad ogni aggiornamento dei pin jax/flax.
+
+**Caveat comune (documentato).** L'osservazione TF è inference-mode (D8): non è una debolezza dell'invarianza (il passo utente non è toccato) ma una semantica di misura diversa dal passo di training con layer stocastici o con statistiche di batch.
+
+---
+
 ## Mappa decisioni → item della checklist
 
 | Decisione | Item chiusi (a valle dell'implementazione + test) |
@@ -394,6 +441,9 @@ strategie superstiti (`relu`, `abs`).
 | D4 | C4 |
 | D5 | A7, C3 |
 | D6 | A1, A2 |
+| D7 | E1, E2 |
+| D8 | E3 (parte), E5 (parte) |
+| D9 | E3 (parte), E5 (parte) |
 
 B1–B4, D1–D3 (checklist) restano interamente a carico dell'implementazione
-e della suite di test.
+e della suite di test. Gli item E4, E6, E7 (tabella Keras, report/viz backend-agnostici, packaging/CI) non discendono da D7–D9 e restano anch'essi a carico dell'implementazione.
