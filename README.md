@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/SashaRisoluti/entropylens/actions/workflows/tests.yml/badge.svg)](https://github.com/SashaRisoluti/entropylens/actions/workflows/tests.yml)
 
-**Entropy-based statistical interpretability for PyTorch activations.**
+**Entropy-based statistical interpretability for neural activations — PyTorch, TensorFlow, JAX.**
 
 entropylens measures *statistical* properties of a network's activation
 distributions — how concentrated or spread out they are — while a model
@@ -125,7 +125,7 @@ architecture: `EntropyReLU`, `EntropyTanh`, `EntropyGELU`, … and a generic
 
 Same estimators (MATH_DECISIONS.md D1–D6), same record schema, same report
 and viz — via a numpy core validated for equivalence against the torch core
-(D7). Install: `pip install entropylens[tf]` or `pip install entropylens[jax]`.
+(D7). Install: `pip install 'entropylens[tf]'` or `pip install 'entropylens[jax]'`.
 
 ### TensorFlow / Keras
 
@@ -244,21 +244,29 @@ Full specification with proofs, decision evidence and revision history
 (in Italian): [`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
 registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
-of the final gate, alongside the 58-test suite).
+of the final gate, alongside the 142-test suite).
 
 ## Project layout
 
 ```
 entropylens/
-  core.py         pure tensor math (no torch.nn — enforced by test)
-  strategies.py   activation → negative-handling strategy table
-  hooks.py        EntropyTracker (forward hooks, non-invasive)
-  layers.py       drop-in Entropy* activation wrappers
-  report.py       normalized-by-default aggregation
-  viz.py          matplotlib dashboards (optional extra)
-validation/       frozen pre-implementation numeric evidence (exp1–exp5, exp4b)
-experiments/      training experiment + viz demo
-tests/            full suite (52 core + 6 viz)
+  core.py           pure tensor math (no torch.nn — enforced by test)
+  core_np.py        numpy mirror of core.py, validated equivalent (D7)
+  record.py         shared LayerRecord (framework-neutral)
+  _compat.py        to_numpy() conversion helpers
+  strategies.py     activation → negative-handling strategy table
+  strategies_tf.py  Keras activation → strategy table (D3 extended)
+  hooks.py          EntropyTracker (forward hooks, non-invasive)
+  layers.py         drop-in Entropy* activation wrappers
+  tf.py             TFEntropyTracker (Keras, weight-sharing aux model)
+  jax.py            JaxEntropyTracker (Flax capture_intermediates)
+  report.py         normalized-by-default aggregation
+  viz.py            matplotlib dashboards (optional extra)
+validation/         frozen pre-implementation numeric evidence (exp1–exp5,
+                    exp4b) + backend equivalence gates: exp6 (numpy core),
+                    exp7 (TF capture), exp8 (JAX/Flax capture)
+experiments/        training experiment + viz demo
+tests/              full suite (142 tests, torch + numpy + TF + JAX)
 ```
 
 ## Out of scope in v1

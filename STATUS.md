@@ -10,6 +10,11 @@ riga N=0, D2 ri-scoping del flag); iterazione 3 = implementazione TDD
 avversaria (warning sparsità CI, troncamento CI, test di regressione delle
 limitazioni).
 
+Full run di 2026-07-13 — `pytest tests/ -q` → **142 passed**, 9 script di
+validazione exit 0 (exp1–exp5, exp4b, exp6–exp8), torch 2.8.0+cpu / TF
+2.21.0 / JAX 0.10.0 / Flax 0.12.7 / Python 3.13, iterazione 4 (backend
+TF/JAX, D7–D9).
+
 | Item | Stato | Iterazione | Note |
 |------|-------|------------|------|
 | A1   | PASS  | 3          | dimostrazione D6 + `test_core_batchwise.py::test_a1_*` (disuguaglianza 4 regimi, attainment N<B e B\|N, degenere, N=1) |
@@ -30,13 +35,13 @@ limitazioni).
 | D1   | PASS  | 3          | `experiments/train_experiment.py` + `EXPERIMENT_NOTES.md`: stesso run, stimatore corretto vs difettoso — tendenza in salita confermata da entrambi (+2.1% vs +3.1%); divergono solo con outlier (exp1) |
 | D2   | PASS  | 3          | ogni item A/B ha test automatizzato nominato in questa tabella; suite riproducibile in `tests/` |
 | D3   | PASS  | 3          | 52 test passati in UN'unica esecuzione (`pytest tests/ -q`) + 6 script di validazione exit 0 nella stessa sessione |
-| E1   | TODO  | 4          | core numpy equivalente al core torch (D7) — gate congelati in `validation/exp6_np_equivalence.py`, implementazione `core_np.py` in corso |
-| E2   | TODO  | 4          | indipendenza di core_np da torch/tf/jax (D7, analogo B4) — test AST previsto |
-| E3   | TODO  | 4          | tracker TensorFlow via modello ausiliario (D8/D9) — gate congelati in `validation/exp7_tf_capture.py` |
-| E4   | TODO  | 4          | tabella strategie Keras (D3 esteso) — implementazione prevista |
-| E5   | TODO  | 4          | cattura JAX/Flax via capture_intermediates (D8/D9) — gate congelati in `validation/exp8_jax_capture.py` |
-| E6   | TODO  | 4          | report/viz backend-agnostici su record numpy — implementazione prevista |
-| E7   | TODO  | 4          | packaging extras tf/jax + job CI backends — implementazione prevista |
+| E1   | PASS  | 4          | core numpy equivalente al core torch (D7): `test_core_np_equivalence.py` (counts bitwise, \|dH\|<=1e-5, ramo value_range incluso); sweep completo in `validation/exp6_np_equivalence.py` (max \|dH\| 4.77e-07, copertura CI pooled 0.938) |
+| E2   | PASS  | 4          | `test_b5_np_core_independence.py`: check AST — `core_np.py` e `record.py` non importano torch/tensorflow/jax/flax/keras (analogo B4) |
+| E3   | PASS  | 4          | `test_tf_tracker.py` (12 test): modello utente mai toccato (aux model condiviso, D8); invarianza congelata bitwise in `validation/exp7_tf_capture.py` G2/G3 con op-determinism; submodel annidati e modelli subclassed esclusi esplicitamente |
+| E4   | PASS  | 4          | `test_strategies_tf.py` (7 test): tabella Keras per classe + identita' di attivazione; Dense lineare e LeakyReLU con slope di default (0.3 > 0.1) -> errore esplicito (D3); hard_tanh -> abs |
+| E5   | PASS  | 4          | `test_jax_tracker.py` (10 test): capture_intermediates stesso forward, bitwise anche sotto jit (`validation/exp8_jax_capture.py` G1-G3, max \|d\| = 0); strategy_map esplicita con warning una-tantum per path (D8 emendata); FrozenDict e multi-sow gestiti |
+| E6   | PASS  | 4          | `test_report_np_records.py` (5 test): report/viz su record numpy senza torch; aggregazione semanticamente invariante ma NON bitwise (ordine di somma numpy, <=1 ulp float32; reliable_fraction accumulata in float64; ddof=1 pinnato da test) |
+| E7   | PASS  | 4          | pyproject 0.2.0: numpy dipendenza base, extras `tf`/`jax` con floor VALIDATI (jax>=0.10, flax>=0.12 — coppia flax 0.8 rotta all'import); job CI `backends` (tf-cpu, jax cpu, exp6-8 exit 0) |
 
 ## Limitazioni documentate (non regressioni, congelate in test)
 
