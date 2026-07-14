@@ -121,6 +121,57 @@ There are also drop-in wrappers if you prefer building tracking into the
 architecture: `EntropyReLU`, `EntropyTanh`, `EntropyGELU`, … and a generic
 `EntropyActivation(module, strategy=...)` — same bitwise guarantees.
 
+## TensorFlow and JAX (experimental)
+
+Same estimators (MATH_DECISIONS.md D1–D6), same record schema, same report
+and viz — via a numpy core validated for equivalence against the torch core
+(D7). Install: `pip install entropylens[tf]` or `pip install entropylens[jax]`.
+
+### TensorFlow / Keras
+
+```python
+from entropylens.tf import TFEntropyTracker
+
+tracker = TFEntropyTracker(model)          # functional or Sequential
+for epoch in range(epochs):
+    train_one_epoch(model)
+    tracker.observe(x_probe)               # extra inference-mode pass
+print(tracker.report().summary())
+```
+
+Your model is **never modified** — observation runs a weight-sharing
+auxiliary model (D8), so training outputs and gradients are invariant *by
+construction* (exp7). Caveats: observation is inference-mode (BatchNorm /
+Dropout differ from the training pass); subclassed models and nested
+submodels are unsupported in v1 (no symbolic layer outputs / top-level
+layers only).
+
+### JAX / Flax
+
+```python
+from entropylens.jax import JaxEntropyTracker, capture
+
+tracker = JaxEntropyTracker(strategy_map={"Dense_0": "relu"})
+y, intermediates = capture(model, params, x)   # same forward pass
+tracker.observe(intermediates)
+print(tracker.report().summary())
+```
+
+Captured `Dense` outputs are **pre-activation** (Flax activations are
+functions), so per-example entropy requires an explicit `strategy_map` —
+no table is possible, and no silent default is ever applied (D3/D8);
+unmapped paths are tracked batch-wise only, with a one-time warning.
+Outputs and gradients are bitwise-invariant with and without capture —
+including under `jax.jit` (exp8; empirical scoping in D9).
+
+### Guarantees per backend (D9)
+
+| Backend | Invariance |
+|---|---|
+| PyTorch | B1/B2/B3 bitwise (hooks), unchanged |
+| TensorFlow | user model untouched by construction; frozen bitwise in exp7 |
+| JAX/Flax | outputs/grads bitwise with and without capture, incl. under jit (exp8; see D9) |
+
 ## Uncertainty
 
 ```python
