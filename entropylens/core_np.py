@@ -143,8 +143,12 @@ def per_example_entropy(activations, strategy):
     a = np.maximum(x, 0.0) if strategy == "relu" else np.abs(x)
     s = a.sum(axis=1)
     valid = s > 0
-    denom = np.maximum(s, np.float32(1e-38))[:, None]
-    p = np.where(valid[:, None], a / denom, np.float32(0.0)).astype(np.float32)
+    # divide by s itself, NOT by a floored s (MATH_DECISIONS.md D10,
+    # validation/exp9): flooring at 1e-38 silently renormalised rows whose
+    # sum was subnormal, collapsing a uniform row to H~0.37 with valid=True
+    with np.errstate(divide="ignore", invalid="ignore"):
+        p = np.where(valid[:, None], a / s[:, None],
+                     np.float32(0.0)).astype(np.float32)
     logp = np.zeros_like(p)
     np.log(p, out=logp, where=p > 0)
     h = -(p * logp).sum(axis=1)

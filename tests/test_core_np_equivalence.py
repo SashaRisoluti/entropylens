@@ -74,6 +74,19 @@ def test_per_example_equivalence(strategy):
     assert np.nanmax(np.abs(pt.entropy.numpy() - pn.entropy)) <= 1e-6
 
 
+@pytest.mark.parametrize("scale", [1e-30, 1e-39, 1e-40, 1e-44])
+@pytest.mark.parametrize("strategy", ["relu", "abs"])
+def test_per_example_underflow_equivalence(scale, strategy):
+    """D10 / exp9 G1 in the numpy mirror: both cores had the same floored
+    denominator, so both had to be fixed or E1 would break."""
+    xt = torch.full((1, 8), scale)
+    pt = core.per_example_entropy(xt, strategy)
+    pn = core_np.per_example_entropy(xt.numpy(), strategy)
+    assert bool(pt.valid[0]) and bool(pn.valid[0])
+    assert abs(float(pn.entropy[0]) - np.log(8)) < 1e-5
+    assert abs(float(pt.entropy[0]) - float(pn.entropy[0])) <= 1e-6
+
+
 def test_per_example_shift_rejected():
     with pytest.raises(ValueError, match="shift"):
         core_np.per_example_entropy(np.ones((4, 4), dtype=np.float32), "shift")

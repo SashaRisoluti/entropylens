@@ -16,10 +16,15 @@ validazione exit 0 (exp1–exp5, exp4b, exp6–exp8), torch 2.8.0+cpu / TF
 2.21.0 / JAX 0.10.0 / Flax 0.12.7 / Python 3.13, iterazione 4 (backend
 TF/JAX, D7–D9).
 
+Full run di 2026-08-03 — `pytest tests/ -q` → **163 passed**, 10 script di
+validazione exit 0 (exp1–exp9), stesse versioni, iterazione 5 (correzione
+D10 del denominatore della per-esempio, da revisione paritaria simulata).
+Nessun item precedentemente PASS è regredito.
+
 | Item | Stato | Iterazione | Note |
 |------|-------|------------|------|
 | A1   | PASS  | 3          | dimostrazione D6 + `test_core_batchwise.py::test_a1_*` (disuguaglianza 4 regimi, attainment N<B e B\|N, degenere, N=1) |
-| A2   | PASS  | 3          | dimostrazione D6 + `test_core_perexample.py::test_a2_*` (one-hot→0, uniforme→log M, riga zero→NaN+valid, disuguaglianza 64 righe) |
+| A2   | PASS  | 3, 5       | dimostrazione D6 + `test_core_perexample.py::test_a2_*` (one-hot→0, uniforme→log M, riga zero→NaN+valid, disuguaglianza 64 righe). It. 5: difetto di implementazione D10 corretto (denominatore con clamp 1e-38 → riga uniforme letta H≈0.37 con `valid=True`); gate `validation/exp9_underflow.py`, regressione `test_underflow_uniform_row` (6 scale × 2 strategie) + gemello numpy |
 | A3   | PASS  | 3          | soglia <10% approvata dall'utente; `test_core_batchwise.py::test_a3_outlier_gate` misura ~0.2% (gate exp1: 0.182%) |
 | A4   | PASS  | 3          | `test_core_batchwise.py::test_a4_n_invariance_of_normalized_entropy`: 4 N, dev <5% vs riferimento analitico (exp2: ≤0.34%). Portata oltre N(0,1): vedi D2 counterexamples + `test_reliability_limitations.py` |
 | A5   | PASS  | 3          | tabella con motivazioni in `strategies.py` (D3); `test_strategies.py` (mappature, motivazioni non vuote, errore esplicito per non mappati, no subclass silenzioso) |

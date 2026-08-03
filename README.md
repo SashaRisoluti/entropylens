@@ -244,7 +244,7 @@ Full specification with proofs, decision evidence and revision history
 (in Italian): [`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
 registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
-of the final gate, alongside the 142-test suite).
+of the final gate, alongside the 163-test suite).
 
 ## Project layout
 
@@ -264,9 +264,10 @@ entropylens/
   viz.py            matplotlib dashboards (optional extra)
 validation/         frozen pre-implementation numeric evidence (exp1–exp5,
                     exp4b) + backend equivalence gates: exp6 (numpy core),
-                    exp7 (TF capture), exp8 (JAX/Flax capture)
+                    exp7 (TF capture), exp8 (JAX/Flax capture) + exp9
+                    (per-example row-sum underflow, D10)
 experiments/        training experiment + viz demo
-tests/              full suite (142 tests, torch + numpy + TF + JAX)
+tests/              full suite (163 tests, torch + numpy + TF + JAX)
 ```
 
 ## Out of scope in v1

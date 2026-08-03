@@ -49,6 +49,31 @@ def test_a2_inequality_random_rows():
         assert bool((nrm >= 0).all() and (nrm <= 1.0 + 1e-9).all())
 
 
+@pytest.mark.parametrize("scale", [1e-30, 1e-38, 1e-39, 1e-40, 1e-42, 1e-44])
+@pytest.mark.parametrize("strategy", ["relu", "abs"])
+def test_underflow_uniform_row(scale, strategy):
+    """Frozen regression of validation/exp9 G1 (MATH_DECISIONS.md D10).
+
+    A uniform row is the MAXIMUM-entropy case at any scale. Normalising by
+    a clamped row sum used to collapse it to H~0.37 with valid=True once
+    the sum went subnormal — a false 'hyper-specialised' reading, the same
+    artefact class as Difetto 2."""
+    m = 8
+    r = core.per_example_entropy(torch.full((1, m), scale), strategy)
+    assert bool(r.valid[0])
+    assert abs(float(r.entropy[0]) - math.log(m)) < 1e-5
+    assert abs(float(r.normalized[0]) - 1.0) < 1e-5
+
+
+def test_underflow_does_not_break_zero_row():
+    """exp9 G2: removing the clamp must not turn a true zero row into a
+    number — 0/0 stays NaN + invalid (D5)."""
+    for strategy in ["relu", "abs"]:
+        r = core.per_example_entropy(torch.zeros(1, 8), strategy)
+        assert torch.isnan(r.entropy[0]) and not bool(r.valid[0])
+        assert torch.isnan(r.normalized[0])
+
+
 def test_requires_2d():
     with pytest.raises(ValueError, match="expected at least 2D"):
         core.per_example_entropy(torch.randn(8), "relu")
