@@ -214,7 +214,12 @@ def per_example_entropy(activations, strategy):
         a = x.clamp_min(0.0) if strategy == "relu" else x.abs()
         s = a.sum(1)
         valid = s > 0
-        p = torch.where(valid.unsqueeze(1), a / s.clamp(min=1e-38).unsqueeze(1),
+        # divide by s itself, NOT by a clamped s (MATH_DECISIONS.md D10,
+        # validation/exp9): clamping to 1e-38 silently renormalised rows
+        # whose sum was subnormal, collapsing a uniform row to H~0.37 with
+        # valid=True. s is a sum of non-negative terms, so s >= max(a) and
+        # s > 0 holds exactly whenever any element is non-zero.
+        p = torch.where(valid.unsqueeze(1), a / s.unsqueeze(1),
                         torch.zeros_like(a))
         plogp = torch.where(p > 0, p * p.log(), torch.zeros_like(p))
         h = -plogp.sum(1)

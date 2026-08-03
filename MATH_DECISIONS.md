@@ -13,6 +13,7 @@ bootstrap full-pipeline); D6/D1 formula del massimo winsorizzato corretta
 per quantili asimmetrici (regressa in exp1); D5 aggiunta riga N=0; D1
 aggiunti scoping del tetto H* e caveat code pesanti.
 2026-07-13: aggiunte D7–D9 (backend TF/JAX) sulla base di exp6–exp8, prima dell'implementazione (stessa disciplina validation-first di D1–D6).
+2026-08-03: aggiunta D10 (denominatore della per-esempio) da revisione paritaria simulata: difetto di implementazione, non di formula — il clamp `1e-38` collassava a H≈0.37 una riga uniforme con `valid=True`. Gate in exp9, regressione congelata.
 
 Tutte le entropie sono in **nats** (logaritmo naturale).
 
@@ -431,6 +432,69 @@ strategie superstiti (`relu`, `abs`).
 
 ---
 
+## D10 — Denominatore della per-esempio (A2 / difetto M1 da peer review): divisione per `s`, senza clamp
+
+**Difetto.** L'implementazione normalizzava ogni riga con
+`a / s.clamp(min=1e-38)` (numpy: `np.maximum(s, 1e-38)`). Quando la somma
+post-strategia della riga scende sotto 1e-38 la riga viene divisa per 1e-38
+invece che per la propria somma: `p` non somma più a 1 e H crolla verso 0
+mentre `valid` resta `True`.
+
+**Formula adottata.**
+
+```
+s = Σ_i a_i         (a_i ≥ 0 per costruzione, post-strategia)
+valid ⟺ s > 0
+p_i = a_i / s       [nessun clamp sul denominatore]
+```
+
+`s` è somma di termini non negativi, quindi `s ≥ max(a)`: il test `s > 0` è
+esatto e non esiste una riga con elementi non nulli e somma nulla. Il clamp
+era quindi una difesa contro un caso impossibile che ne creava uno reale.
+
+**Evidenza (exp9, gate G1 dichiarato prima dello sweep).** Riga uniforme di
+M=8 — il caso a entropia **massima** — al variare della scala degli elementi,
+errore `|H − log M|`:
+
+| scala elemento | C0 clamp (attuale) | C1 senza clamp | C2 rescale/max | C3 float64 |
+|---|---|---|---|---|
+| 1e-38 | 2.33e-07 | 2.33e-07 | 2.33e-07 | 5.71e-09 |
+| 1e-39 | **2.37e-01** | 2.33e-07 | 2.33e-07 | 5.71e-09 |
+| 1e-40 | **1.71e+00** | 2.33e-07 | 2.33e-07 | 5.71e-09 |
+| 1e-44 | **2.08e+00** | 2.33e-07 | 2.33e-07 | 5.71e-09 |
+
+A 1e-40 il codice difettoso legge H = 0.368412 (vero log 8 = 2.079442) con
+`valid=True`: una riga uniforme viene riportata come quasi-one-hot, cioè
+esattamente il falso segnale di iper-specializzazione del Difetto 2.
+Gate superati da C1/C2/C3: G1 (sweep sopra), G2 (riga zero → NaN + invalid,
+convenzione D5 intatta), G3 (anchor D3 invariati: abs 0.7362, relu 0.0856),
+G4 (one-hot → 0), G5 (batteria a scale miste, nessun NaN/Inf in righe valide).
+G6 richiede che C0 fallisca G1 — verificato, il gate cattura il difetto e non
+passa a vuoto.
+
+**Scelta: C1 (nessun clamp).** I tre candidati sono indistinguibili sui gate;
+C1 vince per minimalità — zero operazioni aggiunte, mentre C2 aggiunge una
+riduzione per riga e C3 raddoppia la memoria del calcolo. C1 **ripristina la
+formula di riferimento già validata**: `validation/common.py:147` divideva
+per `s` senza clamp. Il clamp è stato introdotto in fase di implementazione
+(iterazione 3) e nessun gate esistente sondava righe subnormali — motivo per
+cui exp9 esiste.
+
+**Consistenza interna (movente della decisione).** `shift` è stato rimosso in
+D3 con la motivazione che «una strategia che trasforma il caso di massima
+entropia in un caso indefinito non misura ciò che dichiara di misurare». Il
+clamp trasformava lo stesso caso di massima entropia in H≈0.37 dichiarato
+valido: stessa classe di difetto, stesso standard, stessa conclusione.
+
+**Portata.** La soglia è la scala di `s`, non quella dei singoli elementi:
+con M grande una riga può superare 1e-38 in somma pur avendo elementi molto
+più piccoli. Regime raggiungibile con reti in collasso, attivazioni post-
+softmax nelle code, o pesi molto piccoli. Congelato in
+`tests/test_core_perexample.py::test_underflow_uniform_row` (6 scale × 2
+strategie) e nel gemello numpy in `test_core_np_equivalence.py`.
+
+---
+
 ## Mappa decisioni → item della checklist
 
 | Decisione | Item chiusi (a valle dell'implementazione + test) |
@@ -444,6 +508,7 @@ strategie superstiti (`relu`, `abs`).
 | D7 | E1, E2 |
 | D8 | E3 (parte), E5 (parte) |
 | D9 | E3 (parte), E5 (parte) |
+| D10 | A2 (regressione), E1 (mirror numpy allineato) |
 
 B1–B4, D1–D3 (checklist) restano interamente a carico dell'implementazione
 e della suite di test. Gli item E4, E6, E7 (tabella Keras, report/viz backend-agnostici, packaging/CI) non discendono da D7–D9 e restano anch'essi a carico dell'implementazione.
