@@ -29,7 +29,8 @@ jobs:
           cd validation
           for f in exp1_binning_outliers exp2_normalization \
                    exp3_negative_handling exp4_uncertainty \
-                   exp4b_pipeline_uncertainty exp5_bounds exp9_underflow; do
+                   exp4b_pipeline_uncertainty exp5_bounds exp9_underflow \
+                   exp10_dtype_validation; do
             echo "=== $f ==="
             python "$f.py"
           done

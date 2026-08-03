@@ -34,11 +34,19 @@ def _validate_input(x, fn, min_dim=1, max_dim=2):
             "MATH_DECISIONS.md D5).")
     if x.dim() < min_dim:
         raise ValueError(f"{fn}: expected at least {min_dim}D, got {x.dim()}D")
-    if not x.dtype.is_floating_point:
-        x = x.float()
+    # cast FIRST, then check (MATH_DECISIONS.md D11, validation/exp10):
+    # checking on the original dtype let a finite float64 above float32's
+    # max (~3.4e38) pass and become inf on the downcast, after which
+    # batch_wise_entropy reported H=0 with reliable=True. One post-cast
+    # check catches both causes — an original NaN/Inf is still NaN/Inf
+    # after casting — so no second pass is needed. This matches core_np,
+    # which has always validated in this order (D7).
+    x = x.float()
     if not torch.isfinite(x).all():
-        raise ValueError(f"{fn}: input contains NaN or Inf")
-    return x.float()
+        raise ValueError(f"{fn}: input contains NaN or Inf (or a value "
+                         "outside float32 range, which becomes Inf on the "
+                         "float32 cast this library performs)")
+    return x
 
 
 def reliability_threshold(n: int, bins: int) -> bool:

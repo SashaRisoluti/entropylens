@@ -14,6 +14,7 @@ per quantili asimmetrici (regressa in exp1); D5 aggiunta riga N=0; D1
 aggiunti scoping del tetto H* e caveat code pesanti.
 2026-07-13: aggiunte D7–D9 (backend TF/JAX) sulla base di exp6–exp8, prima dell'implementazione (stessa disciplina validation-first di D1–D6).
 2026-08-03: aggiunta D10 (denominatore della per-esempio) da revisione paritaria simulata: difetto di implementazione, non di formula — il clamp `1e-38` collassava a H≈0.37 una riga uniforme con `valid=True`. Gate in exp9, regressione congelata.
+2026-08-03: aggiunta D11 (ordine di validazione dell'input), chiude il punto aperto lasciato dalla nota D5 del 2026-07-13: decisione utente, opzione "cast prima, controllo dopo". Gate in exp10.
 
 Tutte le entropie sono in **nats** (logaritmo naturale).
 
@@ -365,6 +366,7 @@ non offrire uno stderr fittizio per riga.
 | input 1D a batch-wise | trattato come (N, 1) | caso monodimensionale ben definito |
 
 *Nota (2026-07-13, emersa scrivendo il mirror numpy, vedi D7): `_validate_input` del core torch controlla `isfinite` sul dtype originale e poi esegue il downcast a float32 — un float64 finito ma > ~3.4e38 supera il check e diventa silenziosamente inf nel calcolo. Gap aperto sul core torch (nessun test lo esercita); il mirror numpy rifiuta questo input. Da decidere se allineare il core torch (non deciso in autonomia, regola 05).*
+**→ CHIUSO da D11 (2026-08-03):** decisione utente, core torch allineato al mirror numpy (cast prima, controllo dopo). Gate `validation/exp10_dtype_validation.py`, regressione in `test_core_histogram.py` e `test_core_np_equivalence.py`. Il difetto era peggiore di quanto annotato qui: non produceva solo `inf` interno ma un risultato osservabile `H=0.0` con `reliable=True`.
 
 ---
 
@@ -518,6 +520,80 @@ strategie) e nel gemello numpy in `test_core_np_equivalence.py`.
 
 ---
 
+## D11 — Ordine di validazione dell'input (A7 / E1 / difetto M5 da peer review): cast prima, controllo dopo
+
+**Difetto.** `_validate_input` del core torch controllava `torch.isfinite`
+sul dtype ORIGINALE e faceva il downcast dopo:
+
+```
+if not x.dtype.is_floating_point: x = x.float()
+if not torch.isfinite(x).all(): raise ValueError(...)
+return x.float()                      # <- l'overflow avviene QUI
+```
+
+Un float64 finito ma sopra il massimo di float32 (~3.4028e38) supera il
+controllo e diventa `inf` nel tensore restituito. **Non solleva errore**:
+`batch_wise_entropy` riporta H = 0.0 con `reliable = True` — cioè "neurone
+massimamente concentrato, nessun allarme a priori". Stessa classe di
+segnale falso del Difetto 2 e di D10.
+
+Il mirror numpy castava già PRIMA di controllare (D7) e rifiutava lo stesso
+input: i due core avevano contratti d'ingresso diversi. Il gap era stato
+annotato in D5 (nota 2026-07-13) come punto aperto, non deciso in autonomia
+(regola 05).
+
+**Formula adottata (decisione utente, 2026-08-03 — opzione 1).**
+
+```
+x = x.float()                          # cast per primo
+if not isfinite(x).all(): ValueError   # un solo controllo, dopo il cast
+return x
+```
+
+Un controllo unico post-cast intercetta ENTRAMBE le cause: un NaN/Inf
+originale resta NaN/Inf dopo il cast, quindi non serve un secondo passaggio.
+Il messaggio d'errore nomina esplicitamente anche il caso overflow.
+
+**Alternative considerate e scartate** (registrate perché fanno parte della
+decisione):
+- *Mantenere il core torch permissivo e documentare la divergenza*:
+  scartata — lascerebbe la libreria a restituire `H=0, reliable=True` su
+  input traboccato, esattamente il modo di rottura appena corretto in D10,
+  e A7 resterebbe verde sopra un buco noto.
+- *Controllare prima E dopo il cast, con messaggi distinti* ("contiene
+  NaN/Inf" vs "eccede il range float32"): scartata dall'utente — l'unico
+  vantaggio è diagnostico e costa una seconda riduzione `isfinite` ad ogni
+  chiamata.
+
+**Evidenza (exp10).** Gate dichiarati prima dello sweep:
+
+| Gate | Contenuto | Esito |
+|---|---|---|
+| G1 | float64 traboccante → ValueError su 3 entry point × 2 core (6 casi) | PASS |
+| G2 | nessuna regressione: NaN, ±Inf, vuoto, 4D, 1D ancora rifiutati | PASS |
+| G3 | float64 ordinario ancora ACCETTATO e bitwise uguale al float32 equivalente (incluso 1e37, grande ma rappresentabile) | PASS |
+| G4 | percorso float32 intatto: anchor D3 (0.7362 / 0.0856) e regressione D10 (riga uniforme → log 8) invariati | PASS |
+| G5 | il comportamento pre-fix DEVE fallire G1 — verificato: accettava con H=0.0, reliable=True | PASS |
+| G6 | i due core concordano accept/reject su tutta la batteria (7 casi) | PASS |
+
+**Nota metodologica (bug nel gate, non nella libreria).** La prima stesura
+di G3 confrontava le entropie per-esempio con `torch.equal`, che è False in
+presenza di NaN per definizione: con strategia `relu`, 7 righe su 256 erano
+interamente negative → somma nulla → NaN legittimo (D5). Il gate segnalava
+una divergenza float64/float32 inesistente. Corretto in confronto
+NaN-aware (maschere identiche + valori finiti bitwise uguali). Registrato
+perché è il secondo caso in cui un gate ha prodotto un falso segnale: i
+gate stessi vanno letti con la stessa diffidenza del codice.
+
+**Conseguenza API (dichiarata, non silenziosa).** Cambio di comportamento
+osservabile: input float64 con valori oltre il range float32, prima
+accettati (e silenziosamente sbagliati), ora sollevano `ValueError`. È una
+correzione, non una rottura: quei valori producevano numeri privi di
+significato. Un'attivazione che trabocca float32 segnala un problema nella
+rete osservata — farlo emergere è lo scopo dello strumento.
+
+---
+
 ## Mappa decisioni → item della checklist
 
 | Decisione | Item chiusi (a valle dell'implementazione + test) |
@@ -532,6 +608,7 @@ strategie) e nel gemello numpy in `test_core_np_equivalence.py`.
 | D8 | E3 (parte), E5 (parte) |
 | D9 | E3 (parte), E5 (parte) |
 | D10 | A2 (regressione), E1 (mirror numpy allineato) |
+| D11 | A7 (chiuso il gap noto), E1 (contratto d'ingresso unificato) |
 
 B1–B4, D1–D3 (checklist) restano interamente a carico dell'implementazione
 e della suite di test. Gli item E4, E6, E7 (tabella Keras, report/viz backend-agnostici, packaging/CI) non discendono da D7–D9 e restano anch'essi a carico dell'implementazione.
