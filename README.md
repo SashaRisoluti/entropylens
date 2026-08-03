@@ -29,13 +29,17 @@ moment a neuron's estimate becomes degenerate the cell turns grey
 ## Install
 
 ```bash
-pip install torch            # only runtime dependency
+pip install torch numpy      # runtime dependencies
 pip install matplotlib       # optional, for entropylens.viz
 # from a checkout:
 pip install -e .             # or: pip install -e ".[viz]"
 ```
 
-Python ≥ 3.11, torch ≥ 2.0. Tests: `pip install pytest && pytest tests/ -q`.
+Python ≥ 3.11. Base dependencies per `pyproject.toml`: `torch>=2.0`,
+`numpy>=1.24`; only `torch==2.8.0` / `numpy==2.3.3` (Python 3.13) are
+actually exercised by CI and the `validation/` scripts (D8/D9's
+"validated pair, not theoretical floor" discipline extends to the base
+deps: see `STATUS.md`). Tests: `pip install pytest && pytest tests/ -q`.
 
 ## Two metrics
 
@@ -244,7 +248,8 @@ Full specification with proofs, decision evidence and revision history
 (in Italian): [`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
 registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
-of the final gate, alongside the 163-test suite).
+of the final gate, alongside the 163-test suite) — all 10 scripts run in
+CI (`.github/workflows/tests.yml`), not just the 3 needing TF/JAX.
 
 ## Project layout
 
@@ -269,6 +274,29 @@ validation/         frozen pre-implementation numeric evidence (exp1–exp5,
 experiments/        training experiment + viz demo
 tests/              full suite (163 tests, torch + numpy + TF + JAX)
 ```
+
+## What's supported today
+
+The exclusions above are each documented where they apply; this table is
+just their intersection in one place (peer review, R3: assembling it from
+five separate documents costs a disappointed first use).
+
+| | PyTorch | TensorFlow/Keras | JAX/Flax |
+|---|---|---|---|
+| Fully-connected layers | full support (hooks + drop-in layers) | functional/Sequential, top-level layers only | `Dense`, via `capture_intermediates` |
+| Conv / 4D+ feature maps | skipped, explicit warning (spatial-independence unvalidated, D5) | not exercised | not exercised |
+| RNN/LSTM | out of scope (stateful, D-project-goal) | out of scope | out of scope |
+| Subclassed / nested models | n/a | **unsupported**, no symbolic layer outputs (D8) | n/a |
+| Per-example strategy | table by module type (D3), explicit override, error on unmapped | table by Keras class (D3 extended) | **no table possible** — pre-activation captures require an explicit `strategy_map` per path (D8) |
+| Training-time semantics | same forward pass, bitwise-invariant (B1-B3) | separate inference-mode forward — BatchNorm/Dropout differ from the training step (D8) | same forward pass, bitwise-invariant incl. under `jax.jit` (D9) |
+| GPU / CUDA | **not verified** — no CUDA in this project's CI or dev environment; `core.py` allocates several tensors without `device=` and is expected to raise a device-mismatch error on non-CPU input (open item, not yet gated) | n/a (numpy core) | n/a (numpy core) |
+
+Numbers across backends are equivalence-tested on the estimator core only
+(D7, numpy vs torch on identical inputs). Whether the *same model* observed
+through the PyTorch hook and through the TF auxiliary model reads the same
+entropy at the same training step — where BatchNorm/Dropout make the two
+forward passes genuinely different — has not been measured (peer review,
+R3/P2).
 
 ## Out of scope in v1
 

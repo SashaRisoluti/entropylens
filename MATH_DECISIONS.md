@@ -41,6 +41,29 @@ H_plugin = - Σ_k p_k log p_k,   p_k = c_k / N
 | range fisso [-4,4] | 0.176% | PASS |
 | k-NN Kozachenko-Leonenko | 0.932% | PASS |
 
+**Sweep sulla magnitudine dell'outlier (da revisione paritaria simulata —
+finding DA "cherry-picking": 1000.0 è il caso massimamente favorevole al
+quantile-winsorized e massimamente sfavorevole al min-max).** Stesso
+protocollo, outlier a 5/20/100/1000 deviazioni standard:
+
+| outlier | min-max | quantile-winsorized | range fisso | k-NN |
+|---|---|---|---|---|
+| 5σ | 7.396% | 0.182% | 0.176% | 0.496% |
+| 20σ | 41.116% | 0.182% | 0.176% | 0.644% |
+| 100σ | 76.970% | 0.182% | 0.176% | 0.767% |
+| 1000σ | 99.735% | 0.182% | 0.176% | 0.932% |
+
+Il min-max degrada **continuamente** con la magnitudine (7% a 20% a 77% a
+99.7%): 1000.0 non è un caso patologico isolato, è il limite di una curva
+che già a 5σ (un outlier realistico, non estremo) supera il gate del 10%.
+Quantile-winsorized e range fisso sono **piatti** su tre ordini di
+grandezza — la robustezza non dipende dalla scala dell'outlier, coerente
+con il meccanismo (il clamp ignora il valore oltre il quantile, qualunque
+esso sia). Il k-NN cresce lievemente con la magnitudine ma resta sotto
+gate. Sweep completo in `validation/exp1_binning_outliers.py` (informativo,
+non gated: il gate A3 resta fissato all'anchor documentato per restare
+confrontabile nel tempo).
+
 **Scelta: quantile-winsorized come default.** Range fisso resta come opzione
 esplicita (`range=(lo, hi)`) per chi conosce a priori il range
 dell'attivazione: è marginalmente più robusto ma sposta sull'utente una
