@@ -100,6 +100,27 @@ def test_ci_shapes_and_bounds():
     assert (lo >= 0.0).all()
 
 
+def test_dtype_contract_matches_torch_policy():
+    """exp10 G6 (D11): both cores must agree accept/reject on the dtype
+    battery. Before D11 the torch core accepted overflowing float64 while
+    core_np rejected it — the two had different input contracts."""
+    over = torch.full((128, 3), 1e39, dtype=torch.float64)
+    over[0, 0] = 1e38
+    ok64 = torch.randn(128, 3).double()
+    for label, t, should_raise in [("overflowing", over, True),
+                                   ("in-range float64", ok64, False)]:
+        t_raised = n_raised = False
+        try:
+            core.batch_wise_entropy(t)
+        except ValueError:
+            t_raised = True
+        try:
+            core_np.batch_wise_entropy(t.numpy())
+        except ValueError:
+            n_raised = True
+        assert t_raised == n_raised == should_raise, label
+
+
 def test_edge_cases_match_torch_policy():
     with pytest.raises(ValueError, match="empty"):
         core_np.batch_wise_entropy(np.empty((0,), dtype=np.float32))

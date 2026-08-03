@@ -16,10 +16,19 @@ validazione exit 0 (exp1–exp5, exp4b, exp6–exp8), torch 2.8.0+cpu / TF
 2.21.0 / JAX 0.10.0 / Flax 0.12.7 / Python 3.13, iterazione 4 (backend
 TF/JAX, D7–D9).
 
-Full run di 2026-08-03 — `pytest tests/ -q` → **163 passed**, 10 script di
-validazione exit 0 (exp1–exp9), stesse versioni, iterazione 5 (correzione
-D10 del denominatore della per-esempio, da revisione paritaria simulata).
-Nessun item precedentemente PASS è regredito.
+Full run di 2026-08-03 — `pytest tests/ -q` → **168 passed**, 11 script di
+validazione exit 0 (exp1–exp10), stesse versioni, iterazione 5 (revisione
+paritaria simulata: D10 denominatore della per-esempio, D11 ordine di
+validazione dell'input, sweep magnitudine outlier in exp1, wiring CI di
+tutti gli script di validazione). Nessun item precedentemente PASS è
+regredito.
+
+**Limitazione di processo (da revisione paritaria, non risolta):** nessun
+item della checklist copre il *device placement*. `core.py` alloca vari
+tensori senza `device=`, quindi il supporto GPU non è verificato né
+gated — vedi la tabella "What's supported today" nel README. Serve un item
+nuovo (proposta: B6, check AST analogo a B4/B5) più una verifica su
+hardware CUDA, assente da questo ambiente e dalla CI.
 
 | Item | Stato | Iterazione | Note |
 |------|-------|------------|------|
@@ -29,7 +38,7 @@ Nessun item precedentemente PASS è regredito.
 | A4   | PASS  | 3          | `test_core_batchwise.py::test_a4_n_invariance_of_normalized_entropy`: 4 N, dev <5% vs riferimento analitico (exp2: ≤0.34%). Portata oltre N(0,1): vedi D2 counterexamples + `test_reliability_limitations.py` |
 | A5   | PASS  | 3          | tabella con motivazioni in `strategies.py` (D3); `test_strategies.py` (mappature, motivazioni non vuote, errore esplicito per non mappati, no subclass silenzioso) |
 | A6   | PASS  | 3          | report normalizzato-di-default, nats solo con bound esplicito: `test_report.py` |
-| A7   | PASS  | 3          | politiche D5 (inclusa N=0 → ValueError da revisione avversaria): `test_core_histogram.py` (NaN/Inf, 4D, vuoto), `test_core_batchwise.py` (N=1, degenere, 1D), `test_core_perexample.py` (riga zero, 1D rifiutato) |
+| A7   | PASS  | 3, 5       | politiche D5 (inclusa N=0 → ValueError da revisione avversaria): `test_core_histogram.py` (NaN/Inf, 4D, vuoto), `test_core_batchwise.py` (N=1, degenere, 1D), `test_core_perexample.py` (riga zero, 1D rifiutato). It. 5: chiuso il gap noto della nota D5 2026-07-13 (float64 > float32 max accettato → H=0.0 con `reliable=True`); D11 allinea il core torch al mirror numpy, gate `validation/exp10_dtype_validation.py` (G1-G6), regressione in `test_core_histogram.py` (3 entry point) |
 | B1   | PASS  | 3          | `test_hooks.py::test_b1_output_bitwise_invariant` — torch.equal (0.0 esatto), anche dopo detach |
 | B2   | PASS  | 3          | `test_layers.py::test_b2_output_bitwise_identical` + gradienti bitwise |
 | B3   | PASS  | 3          | `test_hooks.py::test_b3_*` (gradienti bitwise con/senza tracker, tensori entropia detached) + no_grad in tutte le funzioni core |
@@ -41,7 +50,7 @@ Nessun item precedentemente PASS è regredito.
 | D1   | PASS  | 3          | `experiments/train_experiment.py` + `EXPERIMENT_NOTES.md`: stesso run, stimatore corretto vs difettoso — tendenza in salita confermata da entrambi (+2.1% vs +3.1%); divergono solo con outlier (exp1) |
 | D2   | PASS  | 3          | ogni item A/B ha test automatizzato nominato in questa tabella; suite riproducibile in `tests/` |
 | D3   | PASS  | 3, 5       | 52 test in UN'unica esecuzione (it. 3) + 6 script exit 0; ri-verificato it. 5: 163 test + 10 script (exp1-exp9) in un'unica sessione, vedi blocco full-run 2026-08-03 sopra |
-| E1   | PASS  | 4          | core numpy equivalente al core torch (D7): `test_core_np_equivalence.py` (counts bitwise, \|dH\|<=1e-5, ramo value_range incluso); sweep completo in `validation/exp6_np_equivalence.py` (max \|dH\| 4.77e-07, copertura CI pooled 0.938) |
+| E1   | PASS  | 4, 5       | core numpy equivalente al core torch (D7): `test_core_np_equivalence.py` (counts bitwise, \|dH\|<=1e-5, ramo value_range incluso); sweep completo in `validation/exp6_np_equivalence.py` (max \|dH\| 4.77e-07, copertura CI pooled 0.938). It. 5: contratto d'ingresso ora unificato tra i due core (D11, exp10 G6) — prima divergevano sul float64 traboccante; `test_dtype_contract_matches_torch_policy` |
 | E2   | PASS  | 4          | `test_b5_np_core_independence.py`: check AST — `core_np.py` e `record.py` non importano torch/tensorflow/jax/flax/keras (analogo B4) |
 | E3   | PASS  | 4          | `test_tf_tracker.py` (12 test): modello utente mai toccato (aux model condiviso, D8); invarianza congelata bitwise in `validation/exp7_tf_capture.py` G2/G3 con op-determinism; submodel annidati e modelli subclassed esclusi esplicitamente |
 | E4   | PASS  | 4          | `test_strategies_tf.py` (7 test): tabella Keras per classe + identita' di attivazione; Dense lineare e LeakyReLU con slope di default (0.3 > 0.1) -> errore esplicito (D3); hard_tanh -> abs |
