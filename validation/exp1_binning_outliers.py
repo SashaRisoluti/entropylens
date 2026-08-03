@@ -65,6 +65,33 @@ for cand in ["quantile", "fixed", "knn"]:
     check(f"A3 gate ({cand})", mean_rel < GATE,
           f"mean rel change {mean_rel * 100:.3f}% < {GATE * 100:.0f}%")
 
+# ---------------------------------------- outlier MAGNITUDE sweep (peer
+# review, Devil's Advocate: the 1000.0-vs-N(0,1) anchor is the maximally
+# favorable case for winsorization and the maximally unfavorable one for
+# min-max; report the sweep instead of only the extreme point). Informational
+# only — does NOT gate A3 (that gate is fixed by the documented anchor so it
+# stays comparable to MATH_DECISIONS.md D1); no default changes here.
+print("\n=== outlier magnitude sweep (informational, not gated) ===")
+print(f"{'multiple of sigma':>18} " + " ".join(f"{n:>10}" for n in
+      ["minmax", "quantile", "fixed", "knn"]))
+for mult in [5, 20, 100, 1000]:
+    sweep = {"minmax": [], "quantile": [], "fixed": [], "knn": []}
+    for seed in range(10):
+        g = torch.Generator().manual_seed(seed)
+        base = torch.randn(1000, generator=g)
+        with_out = torch.cat([base, torch.tensor([float(mult)])])
+        for name, fn in [
+            ("minmax", lambda v: hist_entropy_minmax(v, bins=32)),
+            ("quantile", lambda v: hist_entropy_quantile(v, bins=32)),
+            ("fixed", lambda v: hist_entropy_fixed(v, lo=-4.0, hi=4.0, bins=32)),
+            ("knn", lambda v: knn_entropy_kl(v, k=3)),
+        ]:
+            h0, h1 = fn(base), fn(with_out)
+            sweep[name].append(abs(h1 - h0) / abs(h0))
+    row = " ".join(f"{sum(sweep[n]) / 10 * 100:>9.3f}%" for n in
+                   ["minmax", "quantile", "fixed", "knn"])
+    print(f"{mult:>16}x sd {row}")
+
 # ------------------------------------------------------------- limit cases
 print("\n=== limit cases ===")
 

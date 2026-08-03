@@ -24,6 +24,15 @@ jobs:
           pip install pytest numpy matplotlib
       - name: Run test suite
         run: pytest tests/ -q
+      - name: Validation gates (torch/numpy only)
+        run: |
+          cd validation
+          for f in exp1_binning_outliers exp2_normalization \
+                   exp3_negative_handling exp4_uncertainty \
+                   exp4b_pipeline_uncertainty exp5_bounds exp9_underflow; do
+            echo "=== $f ==="
+            python "$f.py"
+          done
 
   backends:
     runs-on: ubuntu-latest
