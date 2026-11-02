@@ -2,6 +2,7 @@
 exp1/exp2 anchors, now exercised through the library API."""
 import math
 
+import pytest
 import torch
 
 from entropylens import core
@@ -108,3 +109,36 @@ def test_entropy_outside_autograd():
     r = core.batch_wise_entropy(x)
     assert not r.entropy.requires_grad
     assert not r.normalized.requires_grad
+
+
+def _integer_columns():
+    g = torch.Generator().manual_seed(11)
+    return torch.randint(-1000, 1001, (512, 3), generator=g).float()
+
+
+@pytest.mark.parametrize("k", [60, 100, 118])
+def test_overflow_power_of_two_scale_invariance(k):
+    """Frozen regression of validation/exp11 G2 (MATH_DECISIONS.md D12).
+
+    Integers times an exact power of two: every edge and bin index scales
+    exactly, so H must not move at all. At 2**118 the column is finite
+    (max ~3.3e38) but hi - lo overflowed float32, the NaN bin index put
+    every sample in bin 0, and the column read H=0 with reliable=True."""
+    base = _integer_columns()
+    ref = core.batch_wise_entropy(base)
+    r = core.batch_wise_entropy(base * 2.0 ** k)
+    assert torch.equal(r.entropy, ref.entropy)
+    assert torch.equal(r.reliable, ref.reliable)
+
+
+def test_overflow_quantile_straddle():
+    """exp11 G3 (D12): the quantile lerp itself overflowed float32 when the
+    two order statistics it interpolates straddle zero near float32's max
+    (lo became +inf, the column turned 'degenerate')."""
+    base = torch.cat([torch.full((2,), -1.75),
+                      torch.full((126,), 1.75)]).unsqueeze(1)
+    ref = core.batch_wise_entropy(base)
+    assert float(ref.entropy[0]) > 0.0 and bool(ref.reliable[0])
+    r = core.batch_wise_entropy(base * 2.0 ** 127)
+    assert torch.equal(r.entropy, ref.entropy)
+    assert torch.equal(r.reliable, ref.reliable)
