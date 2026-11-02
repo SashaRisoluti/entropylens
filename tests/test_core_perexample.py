@@ -74,6 +74,26 @@ def test_underflow_does_not_break_zero_row():
         assert torch.isnan(r.normalized[0])
 
 
+@pytest.mark.parametrize("row", [
+    torch.full((1, 8), 1e38),
+    torch.full((1, 8), 3e38),
+    torch.tensor([[3e38, -3e38] * 4]),     # uniform only under abs
+])
+@pytest.mark.parametrize("strategy", ["relu", "abs"])
+def test_overflow_uniform_row(row, strategy):
+    """Frozen regression of validation/exp11 G1 (MATH_DECISIONS.md D12).
+
+    The mirror image of D10: a float32 row sum of finite elements near
+    float32's max overflowed to inf, a / inf = 0 everywhere, and the
+    maximum-entropy row read H=0 with valid=True."""
+    m = row.shape[1]
+    if strategy == "relu" and bool((row < 0).any()):
+        m //= 2                            # relu keeps only the positive half
+    r = core.per_example_entropy(row, strategy)
+    assert bool(r.valid[0])
+    assert abs(float(r.entropy[0]) - math.log(m)) < 1e-5
+
+
 def test_requires_2d():
     with pytest.raises(ValueError, match="expected at least 2D"):
         core.per_example_entropy(torch.randn(8), "relu")

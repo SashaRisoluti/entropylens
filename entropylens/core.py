@@ -76,12 +76,20 @@ def _quantile_hist_counts(x, bins, q_lo, q_hi, value_range=None):
     must be handled by the caller.
     """
     n, m = x.shape
+    # float64 for the edges and the bin index (MATH_DECISIONS.md D12,
+    # validation/exp11): in float32 the quantile lerp, hi - lo and xc - lo
+    # overflow to inf on finite inputs near float32's max, and the NaN index
+    # that follows puts every sample in bin 0 -> H=0 with reliable=True.
+    # float64 holds the difference of any two float32 values.
+    # ponytail: transient float64 copy of x (~2x memory here); chunk over
+    # columns if that ever matters.
+    x = x.double()
     if value_range is not None:
         lo_v, hi_v = float(value_range[0]), float(value_range[1])
         if not hi_v > lo_v:
             raise ValueError("value_range requires hi > lo")
-        lo = torch.full((m,), lo_v)
-        hi = torch.full((m,), hi_v)
+        lo = torch.full((m,), lo_v, dtype=torch.float64)
+        hi = torch.full((m,), hi_v, dtype=torch.float64)
     else:
         if not (0.0 <= q_lo < q_hi <= 1.0):
             raise ValueError("need 0 <= q_lo < q_hi <= 1")
@@ -220,6 +228,10 @@ def per_example_entropy(activations, strategy):
                             min_dim=2).detach()
         n, m = x.shape
         a = x.clamp_min(0.0) if strategy == "relu" else x.abs()
+        # sum and divide in float64 (MATH_DECISIONS.md D12, validation/exp11):
+        # a float32 row sum of finite elements near float32's max overflowed
+        # to inf, a / inf = 0, and a uniform row read H=0 with valid=True.
+        a = a.double()
         s = a.sum(1)
         valid = s > 0
         # divide by s itself, NOT by a clamped s (MATH_DECISIONS.md D10,
@@ -228,7 +240,7 @@ def per_example_entropy(activations, strategy):
         # valid=True. s is a sum of non-negative terms, so s >= max(a) and
         # s > 0 holds exactly whenever any element is non-zero.
         p = torch.where(valid.unsqueeze(1), a / s.unsqueeze(1),
-                        torch.zeros_like(a))
+                        torch.zeros_like(a)).float()
         plogp = torch.where(p > 0, p * p.log(), torch.zeros_like(p))
         h = -plogp.sum(1)
         nan = torch.full_like(h, float("nan"))

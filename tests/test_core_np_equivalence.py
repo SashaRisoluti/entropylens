@@ -87,6 +87,28 @@ def test_per_example_underflow_equivalence(scale, strategy):
     assert abs(float(pt.entropy[0]) - float(pn.entropy[0])) <= 1e-6
 
 
+@pytest.mark.parametrize("strategy", ["relu", "abs"])
+def test_per_example_overflow_equivalence(strategy):
+    """D12 / exp11 G1 in the numpy mirror (row sum overflowing float32)."""
+    xt = torch.full((1, 8), 3e38)
+    pt = core.per_example_entropy(xt, strategy)
+    pn = core_np.per_example_entropy(xt.numpy(), strategy)
+    assert bool(pt.valid[0]) and bool(pn.valid[0])
+    assert abs(float(pn.entropy[0]) - np.log(8)) < 1e-5
+    assert abs(float(pt.entropy[0]) - float(pn.entropy[0])) <= 1e-6
+
+
+def test_batch_wise_overflow_equivalence():
+    """D12 / exp11 G2 in the numpy mirror: counts bitwise between the two
+    cores at a scale where hi - lo overflows float32."""
+    g = torch.Generator().manual_seed(11)
+    xt = torch.randint(-1000, 1001, (512, 3), generator=g).float() * 2.0 ** 118
+    ct, dt = core._quantile_hist_counts(xt, 32, 0.01, 0.99)
+    cn, dn = core_np._quantile_hist_counts(xt.numpy(), 32, 0.01, 0.99)
+    assert np.array_equal(ct.numpy(), cn) and np.array_equal(dt.numpy(), dn)
+    assert not dn.any() and (cn > 0).sum(axis=1).min() > 1
+
+
 def test_per_example_shift_rejected():
     with pytest.raises(ValueError, match="shift"):
         core_np.per_example_entropy(np.ones((4, 4), dtype=np.float32), "shift")

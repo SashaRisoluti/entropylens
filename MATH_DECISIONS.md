@@ -15,6 +15,7 @@ aggiunti scoping del tetto H* e caveat code pesanti.
 2026-07-13: aggiunte D7–D9 (backend TF/JAX) sulla base di exp6–exp8, prima dell'implementazione (stessa disciplina validation-first di D1–D6).
 2026-08-03: aggiunta D10 (denominatore della per-esempio) da revisione paritaria simulata: difetto di implementazione, non di formula — il clamp `1e-38` collassava a H≈0.37 una riga uniforme con `valid=True`. Gate in exp9, regressione congelata.
 2026-08-03: aggiunta D11 (ordine di validazione dell'input), chiude il punto aperto lasciato dalla nota D5 del 2026-07-13: decisione utente, opzione "cast prima, controllo dopo". Gate in exp10.
+2026-11-02: aggiunta D12 (overflow negli intermedi su input float32 finito) da code review del branch D10/D11: decisione utente, opzione "float64 negli intermedi". Gate in exp11; candidato numpy di exp6 risincronizzato (era fermo a prima di D10).
 
 Tutte le entropie sono in **nats** (logaritmo naturale).
 
@@ -594,6 +595,108 @@ rete osservata — farlo emergere è lo scopo dello strumento.
 
 ---
 
+## D12 — Overflow negli intermedi su input float32 finito (A2 / A7 / E1, seguito di D10/D11): somme, quantili e indice di bin in float64
+
+**Difetto.** D11 rifiuta al cast i valori fuori dal range float32. Valori
+*dentro* il range traboccano comunque più avanti, in tre punti, in entrambi
+i core:
+
+- *per-esempio*: `s = a.sum(1)` → `inf` per una riga grande; `p = a / inf = 0`
+  → H = 0 con `valid=True`. Riga uniforme di 8 elementi a 1e38: H = −0.0
+  (vero log 8 = 2.0794).
+- *batch-wise, indice di bin*: `hi − lo` e `xc − lo` → `inf`;
+  `(xc − lo) / width` = NaN; l'indice NaN finisce nel bin 0 per ogni
+  campione → H = 0 con `reliable=True`. Colonne di interi × 2^118 (finite,
+  max ~3.3e38): H = 0.0 (vero 3.4617 / 3.4633 / 3.4667).
+- *batch-wise, interpolazione dei quantili*: `a + w·(b − a)` con
+  `b − a = inf` quando le due statistiche d'ordine interpolate stanno a
+  cavallo dello zero vicino al massimo → `lo = +inf`, colonna marcata
+  degenere. Flag onesto, risposta sbagliata: H = 0, `reliable=False`
+  (vero 0.0844, `reliable=True`).
+
+Stessa classe di segnale falso del Difetto 2, di D10 e di D11. Trovato in
+code review del branch D10/D11 (2026-10-29): exp10 copriva solo il cast,
+nessun gate sondava valori finiti vicini al massimo float32.
+
+**Formula adottata (decisione utente, 2026-11-02 — opzione 1 di 3).**
+
+```
+per-esempio:  s = Σ_i float64(a_i);   p_i = float32(float64(a_i) / s)
+batch-wise:   x64 = float64(x);  lo, hi = quantile(x64);  width = hi − lo
+              idx = floor((clip(x64, lo, hi) − lo) / width · B)
+```
+
+Il resto (log, Miller-Madow, normalizzazione) resta in float32. Il float64
+contiene la differenza di due float32 qualsiasi e la somma di fino a ~1e270
+di essi: nessun input float32 finito può far traboccare questi intermedi.
+Effetto collaterale: le somme subnormali di D10 diventano numeri normali.
+
+*Perimetro.* L'opzione proposta nominava "somme e aritmetica dell'indice di
+bin". Lo sweep di exp11 ha mostrato che trabocca anche l'interpolazione dei
+quantili (G3): stessa causa, stesso rimedio, incluso nell'opzione 1 e
+dichiarato qui invece che taciuto.
+
+**Alternative considerate e scartate** (registrate perché fanno parte della
+decisione):
+- *Rescale per riga / per colonna sul massimo, in float32*: supera gli
+  stessi gate con più codice (una riduzione in più per riga e per colonna,
+  più il ramo `value_range` da gestire a parte).
+- *Rifiutare in validazione ogni input i cui intermedi potrebbero
+  traboccare* (es. `max|x| > finfo(float32).max / M`): seconda restrizione
+  del contratto d'ingresso dopo D11, con un bound conservativo che
+  rifiuterebbe input perfettamente calcolabili.
+
+**Evidenza (exp11).** Candidati C0 (aritmetica float32 attuale) e C1
+(float64). Gate dichiarati prima dello sweep:
+
+| Gate | Contenuto | Esito |
+|---|---|---|
+| G1 | per-esempio, righe uniformi 1e37 / 1e38 / 3e38 / ±3e38 × 2 strategie: \|H − log M_eff\| < 1e-5, `valid` | C1 PASS; C0 H = −0.0 da 1e38 in su |
+| G2 | interi × 2^k (k = 60, 100, 118): H e `reliable` bitwise uguali a k = 0 | C1 PASS; C0 H = 0.0 a k = 118 |
+| G3 | quantile a cavallo dello zero: 2 × (−1.75), 126 × (+1.75), × 2^127 | C1 PASS (H = 0.084391); C0 H = 0, `reliable=False` |
+| G4 | nessuna regressione su input ordinario (C1 vs C0): per-esempio max \|dH\| = 9.54e-07; batch-wise solo edge flip (5/4160 colonne, max 1 campione spostato); anchor D3 e riga subnormale D10 invariati | PASS |
+| G5 | C0 DEVE fallire G1, G2, G3 | PASS (li fallisce tutti e tre) |
+| G6 | libreria, entrambi i core via API pubblica: G1–G3, counts bitwise tra i core, \|dH\| ≤ 1e-6, `confidence_interval` con ampiezza non nulla sull'input G2 | PASS (pre-fix: 9 FAIL) |
+
+**Nota sugli edge flip (G4).** In float64 un campione che cade entro
+l'arrotondamento float32 di un bordo di bin può cambiare bin: 5 colonne su
+4160 nella batteria, mai più di un campione per colonna. Non è una
+regressione — in float32 quell'assegnazione era essa stessa un artefatto di
+arrotondamento — ed è il motivo per cui G4 è un vincolo sugli spostamenti e
+non un'uguaglianza bitwise con il comportamento pre-fix.
+
+**Nota metodologica (circolarità di E1, revisione round 1 riga 18).** Prima
+del fix il controllo G6 "i due core concordano" PASSAVA: entrambi i core
+erano rotti nello stesso modo. Secondo caso concreto (dopo D10) in cui
+l'equivalenza torch ≡ numpy non dice nulla sulla correttezza. I gate di
+exp11 sono ancorati a riferimenti esatti (log M, invarianza per potenze di
+due), non al core gemello.
+
+**Risincronizzazione di exp6.** Il candidato numpy incorporato in
+`validation/exp6_np_equivalence.py` (convenzione: copiato VERBATIM in
+`core_np.py`) non era stato aggiornato con D10: conteneva ancora il floor
+`1e-38` e restava verde solo perché la sua batteria non ha righe
+subnormali. Con D12 il core torch è passato al float64 e il candidato
+float32 divergeva per edge flip (G1 counts, max \|dH\| 1.74e-04).
+Candidato risincronizzato a `core_np.py` (D10 + D12; identità verificata via
+AST su `_quantile_hist_counts`, `_miller_madow`, `_validate_input`): exp6 di
+nuovo verde con gli stessi numeri di prima (max \|dH\| 4.77e-07, copertura
+pooled 0.938).
+
+**Costo.** Copie float64 transitorie delle attivazioni negli intermedi
+(~2× memoria in quei passaggi), marcate `ponytail:` in `core.py`. Nessun
+rallentamento osservato sulla suite.
+
+**Portata.** Attivazioni finite ma vicine a 3.4e38: reti in divergenza.
+Raro, ma è proprio il caso in cui lo strumento deve dare un allarme e non
+un "neurone concentrato". Congelato in
+`tests/test_core_perexample.py::test_overflow_uniform_row` (3 righe × 2
+strategie), `tests/test_core_batchwise.py::test_overflow_power_of_two_scale_invariance`
+(k = 60, 100, 118) e `::test_overflow_quantile_straddle`, gemelli numpy in
+`test_core_np_equivalence.py`.
+
+---
+
 ## Mappa decisioni → item della checklist
 
 | Decisione | Item chiusi (a valle dell'implementazione + test) |
@@ -609,6 +712,7 @@ rete osservata — farlo emergere è lo scopo dello strumento.
 | D9 | E3 (parte), E5 (parte) |
 | D10 | A2 (regressione), E1 (mirror numpy allineato) |
 | D11 | A7 (chiuso il gap noto), E1 (contratto d'ingresso unificato) |
+| D12 | A2 (regressione), A7 (input finito ai limiti di float32), E1 (core allineati; candidato exp6 risincronizzato) |
 
 B1–B4, D1–D3 (checklist) restano interamente a carico dell'implementazione
 e della suite di test. Gli item E4, E6, E7 (tabella Keras, report/viz backend-agnostici, packaging/CI) non discendono da D7–D9 e restano anch'essi a carico dell'implementazione.

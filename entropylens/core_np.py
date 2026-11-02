@@ -71,19 +71,23 @@ def _validate_input(x, fn, min_dim=1, max_dim=2):
 
 def _quantile_hist_counts(x, bins, q_lo, q_hi, value_range=None):
     n, m = x.shape
+    # float64 for the edges and the bin index (MATH_DECISIONS.md D12,
+    # validation/exp11): in float32 the quantile lerp, hi - lo and xc - lo
+    # overflow on finite inputs near float32's max -> every sample in bin 0
+    x = x.astype(np.float64)
     if value_range is not None:
         lo_v, hi_v = float(value_range[0]), float(value_range[1])
         if not hi_v > lo_v:
             raise ValueError("value_range requires hi > lo")
-        lo = np.full(m, lo_v, dtype=np.float32)
-        hi = np.full(m, hi_v, dtype=np.float32)
+        lo = np.full(m, lo_v)
+        hi = np.full(m, hi_v)
     else:
         if not (0.0 <= q_lo < q_hi <= 1.0):
             raise ValueError("need 0 <= q_lo < q_hi <= 1")
-        lo = np.quantile(x, q_lo, axis=0).astype(np.float32)
-        hi = np.quantile(x, q_hi, axis=0).astype(np.float32)
+        lo = np.quantile(x, q_lo, axis=0)
+        hi = np.quantile(x, q_hi, axis=0)
     degenerate = hi <= lo
-    width = np.where(degenerate, np.float32(1.0), hi - lo).astype(np.float32)
+    width = np.where(degenerate, 1.0, hi - lo)
     xc = np.clip(x, lo, hi)
     # bin index: matches torch.histc semantics (last edge inclusive)
     idx = ((xc - lo) / width * bins).astype(np.int64)
@@ -141,7 +145,9 @@ def per_example_entropy(activations, strategy):
     x = _validate_input(activations, "per_example_entropy", min_dim=2)
     n, m = x.shape
     a = np.maximum(x, 0.0) if strategy == "relu" else np.abs(x)
-    s = a.sum(axis=1)
+    # sum and divide in float64 (MATH_DECISIONS.md D12, validation/exp11):
+    # a float32 row sum near float32's max overflowed -> a / inf = 0 -> H=0
+    s = a.sum(axis=1, dtype=np.float64)
     valid = s > 0
     # divide by s itself, NOT by a floored s (MATH_DECISIONS.md D10,
     # validation/exp9): flooring at 1e-38 silently renormalised rows whose

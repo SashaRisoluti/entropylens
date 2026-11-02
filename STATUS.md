@@ -23,6 +23,13 @@ validazione dell'input, sweep magnitudine outlier in exp1, wiring CI di
 tutti gli script di validazione). Nessun item precedentemente PASS è
 regredito.
 
+Full run di 2026-11-02 — `pytest tests/ -q` → **181 passed**, 12 script di
+validazione exit 0 (exp1–exp11), torch 2.8.0+cpu / numpy 2.5.3 / TF 2.21.0
+/ JAX 0.10.0 / Flax 0.12.7 / Python 3.13.7, iterazione 5 (seguito da code
+review: D12 overflow negli intermedi su input float32 finito, candidato
+numpy di exp6 risincronizzato). Nessun item precedentemente PASS è
+regredito.
+
 **Limitazione di processo (da revisione paritaria, non risolta):** nessun
 item della checklist copre il *device placement*. `core.py` alloca vari
 tensori senza `device=`, quindi il supporto GPU non è verificato né
@@ -33,12 +40,12 @@ hardware CUDA, assente da questo ambiente e dalla CI.
 | Item | Stato | Iterazione | Note |
 |------|-------|------------|------|
 | A1   | PASS  | 3          | dimostrazione D6 + `test_core_batchwise.py::test_a1_*` (disuguaglianza 4 regimi, attainment N<B e B\|N, degenere, N=1) |
-| A2   | PASS  | 3, 5       | dimostrazione D6 + `test_core_perexample.py::test_a2_*` (one-hot→0, uniforme→log M, riga zero→NaN+valid, disuguaglianza 64 righe). It. 5: difetto di implementazione D10 corretto (denominatore con clamp 1e-38 → riga uniforme letta H≈0.37 con `valid=True`); gate `validation/exp9_underflow.py`, regressione `test_underflow_uniform_row` (6 scale × 2 strategie) + gemello numpy |
+| A2   | PASS  | 3, 5       | dimostrazione D6 + `test_core_perexample.py::test_a2_*` (one-hot→0, uniforme→log M, riga zero→NaN+valid, disuguaglianza 64 righe). It. 5: difetto di implementazione D10 corretto (denominatore con clamp 1e-38 → riga uniforme letta H≈0.37 con `valid=True`); gate `validation/exp9_underflow.py`, regressione `test_underflow_uniform_row` (6 scale × 2 strategie) + gemello numpy. D12: somma di riga che traboccava float32 su elementi finiti (riga uniforme a 1e38 → H=0 con `valid=True`) ora in float64; gate `validation/exp11_overflow.py`, regressione `test_overflow_uniform_row` (3 righe × 2 strategie) + gemello numpy |
 | A3   | PASS  | 3          | soglia <10% approvata dall'utente; `test_core_batchwise.py::test_a3_outlier_gate` misura ~0.2% (gate exp1: 0.182%) |
 | A4   | PASS  | 3          | `test_core_batchwise.py::test_a4_n_invariance_of_normalized_entropy`: 4 N, dev <5% vs riferimento analitico (exp2: ≤0.34%). Portata oltre N(0,1): vedi D2 counterexamples + `test_reliability_limitations.py` |
 | A5   | PASS  | 3          | tabella con motivazioni in `strategies.py` (D3); `test_strategies.py` (mappature, motivazioni non vuote, errore esplicito per non mappati, no subclass silenzioso) |
 | A6   | PASS  | 3          | report normalizzato-di-default, nats solo con bound esplicito: `test_report.py` |
-| A7   | PASS  | 3, 5       | politiche D5 (inclusa N=0 → ValueError da revisione avversaria): `test_core_histogram.py` (NaN/Inf, 4D, vuoto), `test_core_batchwise.py` (N=1, degenere, 1D), `test_core_perexample.py` (riga zero, 1D rifiutato). It. 5: chiuso il gap noto della nota D5 2026-07-13 (float64 > float32 max accettato → H=0.0 con `reliable=True`); D11 allinea il core torch al mirror numpy, gate `validation/exp10_dtype_validation.py` (G1-G6), regressione in `test_core_histogram.py` (3 entry point) |
+| A7   | PASS  | 3, 5       | politiche D5 (inclusa N=0 → ValueError da revisione avversaria): `test_core_histogram.py` (NaN/Inf, 4D, vuoto), `test_core_batchwise.py` (N=1, degenere, 1D), `test_core_perexample.py` (riga zero, 1D rifiutato). It. 5: chiuso il gap noto della nota D5 2026-07-13 (float64 > float32 max accettato → H=0.0 con `reliable=True`); D11 allinea il core torch al mirror numpy, gate `validation/exp10_dtype_validation.py` (G1-G6), regressione in `test_core_histogram.py` (3 entry point). D12: input finito vicino al max float32 traboccava negli intermedi (somma di riga, `hi − lo`, interpolazione dei quantili → H=0 con flag verde); intermedi in float64, gate exp11 G1-G6, regressioni in `test_core_batchwise.py::test_overflow_*` e `test_core_perexample.py` |
 | B1   | PASS  | 3          | `test_hooks.py::test_b1_output_bitwise_invariant` — torch.equal (0.0 esatto), anche dopo detach |
 | B2   | PASS  | 3          | `test_layers.py::test_b2_output_bitwise_identical` + gradienti bitwise |
 | B3   | PASS  | 3          | `test_hooks.py::test_b3_*` (gradienti bitwise con/senza tracker, tensori entropia detached) + no_grad in tutte le funzioni core |
@@ -49,8 +56,8 @@ hardware CUDA, assente da questo ambiente e dalla CI.
 | C4   | PASS  | 3          | decisione utente: IN scope. D4 rideciso dopo verifica avversaria: bootstrap full-pipeline a intervallo normale (exp4b: 90.5–100%; closed-form rigettata, min 62.5%). Seconda verifica: coperture "≥85% conservativa", piano N≥200 (N≈400 con >90% sparsità → warning runtime), CI troncato a [0, log(min(N,B))]. `test_uncertainty.py` |
 | D1   | PASS  | 3          | `experiments/train_experiment.py` + `EXPERIMENT_NOTES.md`: stesso run, stimatore corretto vs difettoso — tendenza in salita confermata da entrambi (+2.1% vs +3.1%); divergono solo con outlier (exp1) |
 | D2   | PASS  | 3          | ogni item A/B ha test automatizzato nominato in questa tabella; suite riproducibile in `tests/` |
-| D3   | PASS  | 3, 5       | 52 test in UN'unica esecuzione (it. 3) + 6 script exit 0; ri-verificato it. 5: 163 test + 10 script (exp1-exp9) in un'unica sessione, vedi blocco full-run 2026-08-03 sopra |
-| E1   | PASS  | 4, 5       | core numpy equivalente al core torch (D7): `test_core_np_equivalence.py` (counts bitwise, \|dH\|<=1e-5, ramo value_range incluso); sweep completo in `validation/exp6_np_equivalence.py` (max \|dH\| 4.77e-07, copertura CI pooled 0.938). It. 5: contratto d'ingresso ora unificato tra i due core (D11, exp10 G6) — prima divergevano sul float64 traboccante; `test_dtype_contract_matches_torch_policy` |
+| D3   | PASS  | 3, 5       | 52 test in UN'unica esecuzione (it. 3) + 6 script exit 0; ri-verificato it. 5: 181 test + 12 script (exp1-exp11) in un'unica sessione, vedi blocco full-run 2026-11-02 sopra |
+| E1   | PASS  | 4, 5       | core numpy equivalente al core torch (D7): `test_core_np_equivalence.py` (counts bitwise, \|dH\|<=1e-5, ramo value_range incluso); sweep completo in `validation/exp6_np_equivalence.py` (max \|dH\| 4.77e-07, copertura CI pooled 0.938). It. 5: contratto d'ingresso ora unificato tra i due core (D11, exp10 G6) — prima divergevano sul float64 traboccante; `test_dtype_contract_matches_torch_policy`. D12: entrambi i core in float64 negli intermedi, counts ancora bitwise (exp11 G6, `test_batch_wise_overflow_equivalence`); candidato numpy di exp6 risincronizzato a `core_np.py` (era fermo a prima di D10). Pre-fix G6 "i core concordano" passava con entrambi rotti: E1 non certifica la correttezza (cfr. D12) |
 | E2   | PASS  | 4          | `test_b5_np_core_independence.py`: check AST — `core_np.py` e `record.py` non importano torch/tensorflow/jax/flax/keras (analogo B4) |
 | E3   | PASS  | 4          | `test_tf_tracker.py` (12 test): modello utente mai toccato (aux model condiviso, D8); invarianza congelata bitwise in `validation/exp7_tf_capture.py` G2/G3 con op-determinism; submodel annidati e modelli subclassed esclusi esplicitamente |
 | E4   | PASS  | 4          | `test_strategies_tf.py` (7 test): tabella Keras per classe + identita' di attivazione; Dense lineare e LeakyReLU con slope di default (0.3 > 0.1) -> errore esplicito (D3); hard_tanh -> abs |
