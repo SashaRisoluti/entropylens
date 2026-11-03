@@ -7,6 +7,8 @@ sposta VERBATIM in entropylens/core_np.py e i gate diventano regressioni in
 tests/test_core_np_equivalence.py.
 
 Gate:
+  G0  il candidato qui sotto e' AST-identico a entropylens/core_np.py
+      (aggiunto con D12: senza, il candidato era rimasto fermo a prima di D10)
   G1  counts bitwise-uguali e maschera degenerate identica su tutti i casi
   G1b counts bitwise e |dH| <= 1e-5 anche sul ramo value_range (range fisso)
   G2  |H_np - H_torch| <= 1e-5 nats; |norm_np - norm_torch| <= 5e-6
@@ -24,6 +26,7 @@ Rischio di parita' reale (AD-2): torch.quantile vs np.quantile (interpolazione
 lineare in entrambi, possibile differenza di promozione dtype) e ordine di
 somma nelle riduzioni. Tutto il resto e' elementwise float32 identico.
 """
+import ast
 import math
 import sys
 from pathlib import Path
@@ -96,9 +99,15 @@ def _validate_input(x, fn, min_dim=1, max_dim=2):
             f"not validated, see MATH_DECISIONS.md D5).")
     if x.ndim < min_dim:
         raise ValueError(f"{fn}: expected at least {min_dim}D, got {x.ndim}D")
-    x = x.astype(np.float32)
+    # values outside float32 range become inf here and are rejected below
+    # (D11); silence numpy's cast warning so callers running with
+    # warnings-as-errors still get the ValueError
+    with np.errstate(over="ignore"):
+        x = x.astype(np.float32)
     if not np.isfinite(x).all():
-        raise ValueError(f"{fn}: input contains NaN or Inf")
+        raise ValueError(f"{fn}: input contains NaN or Inf (or a value "
+                         "outside float32 range, which becomes Inf on the "
+                         "float32 cast this library performs)")
     return x
 
 
@@ -215,7 +224,7 @@ def np_confidence_interval(activations, *, bins=32, q_lo=0.01, q_hi=0.99,
     p_max = counts.max(axis=1) / max(n, 1)
     if n < 400 and bool((p_max > 0.9).any()):
         warnings.warn(
-            "entropylens.confidence_interval: >90% of the mass of at least "
+            "entropylens.core_np.confidence_interval: >90% of the mass of at least "
             "one column sits in a single bin and N < 400; under this "
             "sparsity the CI coverage was measured at 83% at N=200 (below "
             "the 85% floor), recovering only from N ~ 400 "
@@ -250,6 +259,24 @@ def check(name, cond, detail):
     print(f"[{status}] {name}: {detail}")
     if not cond:
         failures.append(name)
+
+
+# G0: the candidate above must still be the code that ships (it moved
+# VERBATIM into core_np.py). Without this gate the candidate stayed at the
+# pre-D10 formula through D10-D12 while exp6 kept passing
+# (MATH_DECISIONS.md D12). Compared by AST, so comments may differ.
+def _bodies(path):
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    return {node.name.removeprefix("np_"):
+            ast.dump(ast.Module(body=node.body, type_ignores=[]))
+            for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+
+_cand, _ship = _bodies(__file__), _bodies(_lib.__file__)
+check("G0 candidate == entropylens/core_np.py", _cand.keys() >= _ship.keys()
+      and all(_cand[k] == _ship[k] for k in _ship),
+      f"AST-identical bodies for {sorted(_ship)}; differing: "
+      f"{sorted(k for k in _ship if _cand.get(k) != _ship[k])}")
 
 
 def make_cases(seed):

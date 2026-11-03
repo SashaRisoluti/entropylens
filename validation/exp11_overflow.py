@@ -183,7 +183,8 @@ for seed in range(20):
             h32, v32 = per_example(pre(x), torch.float32)
             h64, v64 = per_example(pre(x), torch.float64)
             assert torch.equal(v32, v64)
-            worst_pe = max(worst_pe, float((h32 - h64)[v32].abs().max()))
+            d = float((h32 - h64)[v32].abs().max())   # NaN must fail
+            worst_pe = max(worst_pe, d) if math.isfinite(d) else math.inf
 check("G4 per-example |dH| <= 1e-6", worst_pe <= 1e-6,
       f"max |dH| = {worst_pe:.2e} over 160 batteries x 2 strategies")
 check("G4 batch-wise edge flips only", touched <= 0.01 * cols

@@ -1,5 +1,17 @@
 # Revision Tracking — Round 1
 
+> **Snapshot note (added 2026-11-03).** This ledger is the round-1 record as
+> of 2026-08-03 (`9131651`), and its line references point at that commit.
+> Changes since then:
+> - Row 5 (float64 → float32 validation gap, M5): **RESOLVED** by D11
+>   (`4a6b29f`, user decision, option "cast first, check after").
+> - Row 18 (E1 circularity): **partly addressed**. D12 / `validation/exp11`
+>   anchor on exact references (log M, power-of-two scale invariance) rather
+>   than the twin core, and showed the pre-fix "cores agree" check passing
+>   with both cores broken. exp6 itself is still anchored on the torch core.
+>
+> See `MATH_DECISIONS.md` D11–D12 and `STATUS.md` for the current state.
+
 ## Paper Information
 
 | Field | Value |

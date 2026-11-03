@@ -1,5 +1,17 @@
 # Response to Reviewers — Round 1
 
+> **Snapshot note (added 2026-11-03).** This is the round-1 response as of
+> 2026-08-03 (`9131651`). Since then:
+> - M5 (the float64/inf validation gap, "no decision received yet" below) was
+>   **resolved** by D11 (`4a6b29f`, user decision).
+> - The E1-circularity concern is **partly addressed** by D12 /
+>   `validation/exp11`, which gate on exact references instead of the twin
+>   core.
+> - Where this file says the numpy underflow twin covers "both cores" at 6
+>   scales, the numpy twin covers 4 scales.
+>
+> Current state: `MATH_DECISIONS.md` D10–D12, `STATUS.md`.
+
 **Manuscript:** entropylens (repo bundle reviewed as a methods/tools paper)
 **Previous decision:** Major Revision
 **Revision date:** 2026-08-03

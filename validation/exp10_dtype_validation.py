@@ -33,10 +33,14 @@ Gates (declared before the sweep, per 05_ITERATION_LOOP.md):
      are still rejected, empty / 4D / wrong-dim errors unchanged.
   G3 ordinary float64 input (in float32 range) is still ACCEPTED and gives
      the same answer as the equivalent float32 input.
-  G4 float32 inputs are completely unaffected: results bitwise identical
-     to the pre-fix behaviour (frozen anchors below).
-  G5 the CURRENT torch behaviour must FAIL G1 — proof the gate captures
-     the defect rather than passing vacuously (exp1/exp9 discipline).
+  G4 the float32 path keeps its documented anchors: D3 (0.7362 / 0.0856),
+     the D10 subnormal uniform row (1e-40 -> log 8), normalized in bounds.
+     (At the D11 commit, 4a6b29f, float32 results were also bitwise
+     identical to pre-D11; D12 later changed float32 intermediates on
+     purpose, and that change is gated by exp11 G4, not here.)
+  G5 the PRE-FIX validation order (frozen below as c0_validate) must FAIL
+     G1 — proof the gate captures the defect rather than passing
+     vacuously (exp1/exp9 discipline), re-checked on every run.
   G6 torch and numpy cores agree accept/reject on the whole battery.
 """
 
@@ -81,19 +85,23 @@ def overflowing(n=128, m=4):
     return x
 
 
-print("=== G5: current torch behaviour must exhibit the defect ===")
+print("=== G5: the pre-fix validation order must exhibit the defect ===")
+
+
+def c0_validate(x):
+    """Frozen pre-D11 torch order: finiteness checked on the ORIGINAL dtype,
+    downcast afterwards. Kept so G5 re-proves the defect on every run."""
+    if not torch.isfinite(x).all():
+        raise ValueError("input contains NaN or Inf")
+    return x.float()
+
+
 x = overflowing()
-try:
-    r = core.batch_wise_entropy(x)
-    defect_present = True
-    print(f"     torch accepted the input: H={r.entropy[0]:.4f}, "
-          f"reliable={bool(r.reliable[0])} "
-          f"-> silent 'concentrated neuron' reading")
-except ValueError:
-    defect_present = False
-    print("     torch rejected the input (fix already applied)")
-check("G5 defect captured OR already fixed", True,
-      "informational: defect present" if defect_present else "already fixed")
+accepted = not _raises(c0_validate, x)
+leaks_inf = accepted and not bool(torch.isfinite(c0_validate(x)).all())
+check("G5 pre-fix order accepts the G1 input and leaks inf",
+      accepted and leaks_inf,
+      "C0 passes the finiteness check, then returns inf after the cast")
 
 # ------------------------------------------------------------------ G1
 print("\n=== G1: overflowing float64 rejected by both cores ===")
@@ -172,9 +180,10 @@ for strat, expected in [("abs", 0.7362), ("relu", 0.0856)]:
     h = float(core.per_example_entropy(anchor, strat).entropy[0])
     check(f"G4 D3 anchor {strat}", abs(h - expected) < 5e-4,
           f"H={h:.4f}, documented {expected:.4f}")
-uni = torch.full((1, 8), 0.25)
+# 1e-40: the row sum is subnormal, where the pre-D10 clamp read H=0.368
+uni = torch.full((1, 8), 1e-40)
 h = float(core.per_example_entropy(uni, "relu").entropy[0])
-check("G4 uniform row -> log 8 (D10 regression)",
+check("G4 subnormal uniform row -> log 8 (D10 regression)",
       abs(h - math.log(8)) < 1e-5, f"H={h:.6f}")
 g = torch.Generator().manual_seed(4)
 b = core.batch_wise_entropy(torch.randn(512, 4, generator=g))

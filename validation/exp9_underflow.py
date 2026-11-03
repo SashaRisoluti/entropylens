@@ -106,7 +106,8 @@ for scale in SCALES:
         worst = 0.0
         for strat, pre in STRATEGIES.items():
             h, valid = fn(pre(torch.full((1, M), scale)))
-            worst = max(worst, abs(float(h[0]) - LOG_M))
+            err = abs(float(h[0]) - LOG_M)   # NaN must fail, not vanish in max()
+            worst = max(worst, err) if math.isfinite(err) else math.inf
             if not bool(valid[0]):
                 worst = float("inf")
         g1_ok[name] &= worst < 1e-5
