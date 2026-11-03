@@ -36,10 +36,11 @@ pip install -e .             # or: pip install -e ".[viz]"
 ```
 
 Python ≥ 3.11. Base dependencies per `pyproject.toml`: `torch>=2.0`,
-`numpy>=1.24`; only `torch==2.8.0` / `numpy==2.3.3` (Python 3.13) are
-actually exercised by CI and the `validation/` scripts (D8/D9's
-"validated pair, not theoretical floor" discipline extends to the base
-deps: see `STATUS.md`). Tests: `pip install pytest && pytest tests/ -q`.
+`numpy>=1.24`. Those floors are untested: CI installs the latest CPU
+torch and numpy (unpinned) on Python 3.11–3.13, and the recorded full runs
+in `STATUS.md` used torch 2.8.0+cpu with numpy 2.3.3 (2026-07/08) and
+numpy 2.5.3 (2026-11), Python 3.13 (D8/D9's "validated pair, not
+theoretical floor" discipline). Tests: `pip install pytest && pytest tests/ -q`.
 
 ## Two metrics
 
@@ -248,8 +249,8 @@ Full specification with proofs, decision evidence and revision history
 (in Italian): [`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
 registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
-of the final gate, alongside the 181-test suite) — all 12 scripts run in
-CI (`.github/workflows/tests.yml`), not just the 3 needing TF/JAX.
+of the final gate, alongside the 183-test suite) — all 12 scripts run in
+CI (`.github/workflows/tests.yml`), not just the 3 in the `backends` job.
 
 ## Project layout
 
@@ -274,7 +275,7 @@ validation/         frozen pre-implementation numeric evidence (exp1–exp5,
                     (input dtype/overflow contract, D11) + exp11
                     (float32 overflow in intermediates, D12)
 experiments/        training experiment + viz demo
-tests/              full suite (181 tests, torch + numpy + TF + JAX)
+tests/              full suite (183 tests, torch + numpy + TF + JAX)
 ```
 
 ## What's supported today
@@ -291,7 +292,7 @@ five separate documents costs a disappointed first use).
 | Subclassed / nested models | n/a | **unsupported**, no symbolic layer outputs (D8) | n/a |
 | Per-example strategy | table by module type (D3), explicit override, error on unmapped | table by Keras class (D3 extended) | **no table possible** — pre-activation captures require an explicit `strategy_map` per path (D8) |
 | Training-time semantics | same forward pass, bitwise-invariant (B1-B3) | separate inference-mode forward — BatchNorm/Dropout differ from the training step (D8) | same forward pass, bitwise-invariant incl. under `jax.jit` (D9) |
-| GPU / CUDA | **not verified** — no CUDA in this project's CI or dev environment; `core.py` allocates several tensors without `device=` and is expected to raise a device-mismatch error on non-CPU input (open item, not yet gated) | n/a (numpy core) | n/a (numpy core) |
+| GPU / CUDA | **not verified** — no CUDA in this project's CI or dev environment; `core.py` allocates several tensors without `device=` and is expected to raise a device-mismatch error on non-CPU input (open item, not yet gated). Apple MPS cannot work even after that fix: since D12 the core computes float64 intermediates, which MPS does not support | n/a (numpy core) | n/a (numpy core) |
 
 Numbers across backends are equivalence-tested on the estimator core only
 (D7, numpy vs torch on identical inputs). Whether the *same model* observed

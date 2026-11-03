@@ -2,7 +2,7 @@
 
 MUST NOT reference torch.nn (checklist B4): everything here is testable
 with plain tensors. Formulas are specified and validated in
-MATH_DECISIONS.md (D1, D2, D4, D5, D6); do not change them here without
+MATH_DECISIONS.md (D1-D6, D10-D12); do not change them here without
 re-running validation/.
 
 All entropies are in nats.
@@ -231,6 +231,8 @@ def per_example_entropy(activations, strategy):
         # sum and divide in float64 (MATH_DECISIONS.md D12, validation/exp11):
         # a float32 row sum of finite elements near float32's max overflowed
         # to inf, a / inf = 0, and a uniform row read H=0 with valid=True.
+        # ponytail: float64 copy of the activations, same ceiling as in
+        # _quantile_hist_counts; also why MPS (no float64) cannot run this.
         a = a.double()
         s = a.sum(1)
         valid = s > 0

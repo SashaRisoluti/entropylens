@@ -3,6 +3,8 @@
 Reduced grid (the full sweep lives in validation/exp6_np_equivalence.py,
 run in CI); gates identical: counts bitwise, |dH| <= 1e-5, flags identical.
 """
+import warnings
+
 import numpy as np
 import pytest
 import torch
@@ -74,7 +76,8 @@ def test_per_example_equivalence(strategy):
     assert np.nanmax(np.abs(pt.entropy.numpy() - pn.entropy)) <= 1e-6
 
 
-@pytest.mark.parametrize("scale", [1e-30, 1e-39, 1e-40, 1e-44])
+@pytest.mark.parametrize("scale", [
+    pytest.param(1e-30, id="control-1e-30"), 1e-39, 1e-40, 1e-44])
 @pytest.mark.parametrize("strategy", ["relu", "abs"])
 def test_per_example_underflow_equivalence(scale, strategy):
     """D10 / exp9 G1 in the numpy mirror: both cores had the same floored
@@ -98,15 +101,44 @@ def test_per_example_overflow_equivalence(strategy):
     assert abs(float(pt.entropy[0]) - float(pn.entropy[0])) <= 1e-6
 
 
-def test_batch_wise_overflow_equivalence():
-    """D12 / exp11 G2 in the numpy mirror: counts bitwise between the two
-    cores at a scale where hi - lo overflows float32."""
+def _overflow_cases():
     g = torch.Generator().manual_seed(11)
-    xt = torch.randint(-1000, 1001, (512, 3), generator=g).float() * 2.0 ** 118
+    return {   # name -> (unscaled input, power-of-two exponent)
+        "G2-hi-minus-lo": (
+            torch.randint(-1000, 1001, (512, 3), generator=g).float(), 118),
+        "G3-quantile-lerp": (
+            torch.cat([torch.full((2,), -1.75),
+                       torch.full((126,), 1.75)]).unsqueeze(1), 127),
+    }
+
+
+@pytest.mark.parametrize("case", list(_overflow_cases()))
+def test_batch_wise_overflow_equivalence(case):
+    """D12 / exp11 G2-G3 in the numpy mirror: where float32 overflows
+    (G2: hi - lo; G3: the quantile lerp itself), counts are bitwise equal
+    between the two cores AND to the unscaled input's (power-of-two
+    scaling is exact), so a revert in both cores is caught too."""
+    base, k = _overflow_cases()[case]
+    xt = base * 2.0 ** k
     ct, dt = core._quantile_hist_counts(xt, 32, 0.01, 0.99)
     cn, dn = core_np._quantile_hist_counts(xt.numpy(), 32, 0.01, 0.99)
+    ref, _ = core_np._quantile_hist_counts(base.numpy(), 32, 0.01, 0.99)
     assert np.array_equal(ct.numpy(), cn) and np.array_equal(dt.numpy(), dn)
-    assert not dn.any() and (cn > 0).sum(axis=1).min() > 1
+    assert np.array_equal(cn, ref) and not dn.any()
+
+
+def test_overflow_rejection_same_error_in_both_cores():
+    """D11 contract under warnings-as-errors: both cores raise the same
+    ValueError. numpy's cast used to emit RuntimeWarning('overflow
+    encountered in cast') first, so such callers got the wrong exception
+    from core_np, and its message did not name the overflow case."""
+    x = torch.full((128, 3), 1e39, dtype=torch.float64)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(ValueError, match="outside float32 range"):
+            core.batch_wise_entropy(x)
+        with pytest.raises(ValueError, match="outside float32 range"):
+            core_np.batch_wise_entropy(x.numpy())
 
 
 def test_per_example_shift_rejected():

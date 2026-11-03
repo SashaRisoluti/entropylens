@@ -1,5 +1,14 @@
 # Fix P0 review defects
 
+> **Snapshot note (added 2026-11-03).** This is the working plan from before
+> D10; its line references and script counts are from that time.
+> - The "BLOCKED" float64/inf item below was **resolved** by D11 (`4a6b29f`,
+>   user decision).
+> - A follow-up overflow defect was fixed in D12.
+> - The GPU/device item is still open.
+>
+> Current state: `MATH_DECISIONS.md`, `STATUS.md`.
+
 ## Goal
 Close the three P0 defects from the peer-review panel: the confirmed per-example
 underflow bug, the unverified GPU/device question, and the self-declared

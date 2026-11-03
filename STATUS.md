@@ -2,8 +2,8 @@
 
 Esecuzione di riferimento delle iterazioni 1–3: `pytest tests/ -q` →
 **52 passed** (run unico, D3) + `validation/exp1..exp5 + exp4b` tutti
-exit 0, 2026-07-10, torch 2.8.0+cpu, Python 3.13 (l'ultima esecuzione
-completa è quella dell'iterazione 4, sotto). Ciclo: iterazione 1 = validazione formule
+exit 0, 2026-07-10, torch 2.8.0+cpu, Python 3.13 (le esecuzioni
+complete successive sono registrate sotto, in ordine). Ciclo: iterazione 1 = validazione formule
 (exp1–exp5, MATH_DECISIONS.md); iterazione 2 = verifica avversaria
 multi-agente e amendment (D4 rideciso → exp4b, D6/D1 formula corretta, D5
 riga N=0, D2 ri-scoping del flag); iterazione 3 = implementazione TDD
@@ -16,7 +16,14 @@ validazione exit 0 (exp1–exp5, exp4b, exp6–exp8), torch 2.8.0+cpu / TF
 2.21.0 / JAX 0.10.0 / Flax 0.12.7 / Python 3.13, iterazione 4 (backend
 TF/JAX, D7–D9).
 
-Full run di 2026-08-03 — `pytest tests/ -q` → **168 passed**, 11 script di
+Full run di 2026-08-03 (prima di D11) — `pytest tests/ -q` → **163 passed**,
+10 script di validazione exit 0 (exp1–exp9), stesse versioni, iterazione 5
+(correzione D10 del denominatore della per-esempio, da revisione paritaria
+simulata). Nessun item precedentemente PASS è regredito. *(Voce ripristinata
+il 2026-11-03: il commit di D11 l'aveva sovrascritta invece di aggiungere la
+successiva.)*
+
+Full run di 2026-08-03 (dopo D11) — `pytest tests/ -q` → **168 passed**, 11 script di
 validazione exit 0 (exp1–exp10), stesse versioni, iterazione 5 (revisione
 paritaria simulata: D10 denominatore della per-esempio, D11 ordine di
 validazione dell'input, sweep magnitudine outlier in exp1, wiring CI di
@@ -29,6 +36,20 @@ validazione exit 0 (exp1–exp11), torch 2.8.0+cpu / numpy 2.5.3 / TF 2.21.0
 review: D12 overflow negli intermedi su input float32 finito, candidato
 numpy di exp6 risincronizzato). Nessun item precedentemente PASS è
 regredito.
+
+Full run di 2026-11-03 — `pytest tests/ -q` → **183 passed**, 12 script di
+validazione exit 0 (exp1–exp11), stesse versioni del 2026-11-02, dopo le
+correzioni da code review multi-agente (Brooks-lint, 4 revisori). Le
+correzioni:
+- gate vacui di exp10 (G5, G4) resi effettivi;
+- nuovo gate exp6 G0 (candidato ≡ `core_np.py`, identità AST);
+- accumulatori NaN-safe in exp9/exp11;
+- contratto D11 del mirror numpy allineato (stesso `ValueError` anche con
+  warnings-as-errors);
+- gemello numpy per il caso G3 di exp11;
+- loop CI su `exp*.py`.
+
+Nessun item precedentemente PASS è regredito.
 
 **Limitazione di processo (da revisione paritaria, non risolta):** nessun
 item della checklist copre il *device placement*. `core.py` alloca vari
@@ -56,7 +77,7 @@ hardware CUDA, assente da questo ambiente e dalla CI.
 | C4   | PASS  | 3          | decisione utente: IN scope. D4 rideciso dopo verifica avversaria: bootstrap full-pipeline a intervallo normale (exp4b: 90.5–100%; closed-form rigettata, min 62.5%). Seconda verifica: coperture "≥85% conservativa", piano N≥200 (N≈400 con >90% sparsità → warning runtime), CI troncato a [0, log(min(N,B))]. `test_uncertainty.py` |
 | D1   | PASS  | 3          | `experiments/train_experiment.py` + `EXPERIMENT_NOTES.md`: stesso run, stimatore corretto vs difettoso — tendenza in salita confermata da entrambi (+2.1% vs +3.1%); divergono solo con outlier (exp1) |
 | D2   | PASS  | 3          | ogni item A/B ha test automatizzato nominato in questa tabella; suite riproducibile in `tests/` |
-| D3   | PASS  | 3, 5       | 52 test in UN'unica esecuzione (it. 3) + 6 script exit 0; ri-verificato it. 5: 181 test + 12 script (exp1-exp11) in un'unica sessione, vedi blocco full-run 2026-11-02 sopra |
+| D3   | PASS  | 3, 5       | 52 test in UN'unica esecuzione (it. 3) + 6 script exit 0; ri-verificato it. 5: 183 test + 12 script (exp1-exp11) in un'unica sessione, vedi blocco full-run 2026-11-03 sopra |
 | E1   | PASS  | 4, 5       | core numpy equivalente al core torch (D7): `test_core_np_equivalence.py` (counts bitwise, \|dH\|<=1e-5, ramo value_range incluso); sweep completo in `validation/exp6_np_equivalence.py` (max \|dH\| 4.77e-07, copertura CI pooled 0.938). It. 5: contratto d'ingresso ora unificato tra i due core (D11, exp10 G6) — prima divergevano sul float64 traboccante; `test_dtype_contract_matches_torch_policy`. D12: entrambi i core in float64 negli intermedi, counts ancora bitwise (exp11 G6, `test_batch_wise_overflow_equivalence`); candidato numpy di exp6 risincronizzato a `core_np.py` (era fermo a prima di D10). Pre-fix G6 "i core concordano" passava con entrambi rotti: E1 non certifica la correttezza (cfr. D12) |
 | E2   | PASS  | 4          | `test_b5_np_core_independence.py`: check AST — `core_np.py` e `record.py` non importano torch/tensorflow/jax/flax/keras (analogo B4) |
 | E3   | PASS  | 4          | `test_tf_tracker.py` (12 test): modello utente mai toccato (aux model condiviso, D8); invarianza congelata bitwise in `validation/exp7_tf_capture.py` G2/G3 con op-determinism; submodel annidati e modelli subclassed esclusi esplicitamente |

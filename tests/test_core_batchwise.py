@@ -116,7 +116,11 @@ def _integer_columns():
     return torch.randint(-1000, 1001, (512, 3), generator=g).float()
 
 
-@pytest.mark.parametrize("k", [60, 100, 118])
+@pytest.mark.parametrize("k", [
+    # controls: hi - lo stays inside float32 at these scales
+    pytest.param(60, id="control-2**60"),
+    pytest.param(100, id="control-2**100"),
+    pytest.param(118, id="2**118")])
 def test_overflow_power_of_two_scale_invariance(k):
     """Frozen regression of validation/exp11 G2 (MATH_DECISIONS.md D12).
 
@@ -137,8 +141,12 @@ def test_overflow_quantile_straddle():
     (lo became +inf, the column turned 'degenerate')."""
     base = torch.cat([torch.full((2,), -1.75),
                       torch.full((126,), 1.75)]).unsqueeze(1)
-    ref = core.batch_wise_entropy(base)
+    x = base * 2.0 ** 127
+    # precondition: with N=128 and q_lo=0.01 the lerp sits between the
+    # -1.75 and +1.75 order statistics, so float32 interpolation overflows
+    assert bool(torch.quantile(x, 0.01, dim=0).isinf().all())
+    ref = core.batch_wise_entropy(base, q_lo=0.01, q_hi=0.99)
     assert float(ref.entropy[0]) > 0.0 and bool(ref.reliable[0])
-    r = core.batch_wise_entropy(base * 2.0 ** 127)
+    r = core.batch_wise_entropy(x, q_lo=0.01, q_hi=0.99)
     assert torch.equal(r.entropy, ref.entropy)
     assert torch.equal(r.reliable, ref.reliable)

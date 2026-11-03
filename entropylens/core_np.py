@@ -1,10 +1,11 @@
 """Backend-agnostic numpy mirror of entropylens.core (checklist E1/E2).
 
 Formulas are IDENTICAL to entropylens/core.py, locked by MATH_DECISIONS.md
-D1-D6 and D7; numerical equivalence with the torch core is gated by
+D1-D7 and D10-D12; numerical equivalence with the torch core is gated by
 validation/exp6_np_equivalence.py and frozen in
 tests/test_core_np_equivalence.py. MUST NOT import torch, tensorflow, or
-jax (checklist E2, AST-checked). All entropies are in nats, float32.
+jax (checklist E2, AST-checked). All entropies are in nats; outputs are
+float32 (sums, quantiles and bin indices run in float64, D12).
 """
 import math
 import warnings
@@ -63,9 +64,15 @@ def _validate_input(x, fn, min_dim=1, max_dim=2):
             f"not validated, see MATH_DECISIONS.md D5).")
     if x.ndim < min_dim:
         raise ValueError(f"{fn}: expected at least {min_dim}D, got {x.ndim}D")
-    x = x.astype(np.float32)
+    # values outside float32 range become inf here and are rejected below
+    # (D11); silence numpy's cast warning so callers running with
+    # warnings-as-errors still get the ValueError
+    with np.errstate(over="ignore"):
+        x = x.astype(np.float32)
     if not np.isfinite(x).all():
-        raise ValueError(f"{fn}: input contains NaN or Inf")
+        raise ValueError(f"{fn}: input contains NaN or Inf (or a value "
+                         "outside float32 range, which becomes Inf on the "
+                         "float32 cast this library performs)")
     return x
 
 

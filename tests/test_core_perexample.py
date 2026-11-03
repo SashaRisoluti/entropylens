@@ -49,7 +49,11 @@ def test_a2_inequality_random_rows():
         assert bool((nrm >= 0).all() and (nrm <= 1.0 + 1e-9).all())
 
 
-@pytest.mark.parametrize("scale", [1e-30, 1e-38, 1e-39, 1e-40, 1e-42, 1e-44])
+@pytest.mark.parametrize("scale", [
+    # controls: the row sum (8x) stays above the old 1e-38 clamp
+    pytest.param(1e-30, id="control-1e-30"),
+    pytest.param(1e-38, id="control-1e-38"),
+    1e-39, 1e-40, 1e-42, 1e-44])
 @pytest.mark.parametrize("strategy", ["relu", "abs"])
 def test_underflow_uniform_row(scale, strategy):
     """Frozen regression of validation/exp9 G1 (MATH_DECISIONS.md D10).
@@ -74,24 +78,23 @@ def test_underflow_does_not_break_zero_row():
         assert torch.isnan(r.normalized[0])
 
 
-@pytest.mark.parametrize("row", [
-    torch.full((1, 8), 1e38),
-    torch.full((1, 8), 3e38),
-    torch.tensor([[3e38, -3e38] * 4]),     # uniform only under abs
+@pytest.mark.parametrize("row,m_eff", [
+    pytest.param(torch.full((1, 8), 1e38), {"relu": 8, "abs": 8}, id="1e38"),
+    pytest.param(torch.full((1, 8), 3e38), {"relu": 8, "abs": 8}, id="3e38"),
+    # relu keeps only the positive half; abs sees a uniform row of 8
+    pytest.param(torch.tensor([[3e38, -3e38] * 4]), {"relu": 4, "abs": 8},
+                 id="+-3e38"),
 ])
 @pytest.mark.parametrize("strategy", ["relu", "abs"])
-def test_overflow_uniform_row(row, strategy):
+def test_overflow_uniform_row(row, m_eff, strategy):
     """Frozen regression of validation/exp11 G1 (MATH_DECISIONS.md D12).
 
     The mirror image of D10: a float32 row sum of finite elements near
     float32's max overflowed to inf, a / inf = 0 everywhere, and the
     maximum-entropy row read H=0 with valid=True."""
-    m = row.shape[1]
-    if strategy == "relu" and bool((row < 0).any()):
-        m //= 2                            # relu keeps only the positive half
     r = core.per_example_entropy(row, strategy)
     assert bool(r.valid[0])
-    assert abs(float(r.entropy[0]) - math.log(m)) < 1e-5
+    assert abs(float(r.entropy[0]) - math.log(m_eff[strategy])) < 1e-5
 
 
 def test_requires_2d():

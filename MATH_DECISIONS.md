@@ -16,6 +16,7 @@ aggiunti scoping del tetto H* e caveat code pesanti.
 2026-08-03: aggiunta D10 (denominatore della per-esempio) da revisione paritaria simulata: difetto di implementazione, non di formula — il clamp `1e-38` collassava a H≈0.37 una riga uniforme con `valid=True`. Gate in exp9, regressione congelata.
 2026-08-03: aggiunta D11 (ordine di validazione dell'input), chiude il punto aperto lasciato dalla nota D5 del 2026-07-13: decisione utente, opzione "cast prima, controllo dopo". Gate in exp10.
 2026-11-02: aggiunta D12 (overflow negli intermedi su input float32 finito) da code review del branch D10/D11: decisione utente, opzione "float64 negli intermedi". Gate in exp11; candidato numpy di exp6 risincronizzato (era fermo a prima di D10).
+2026-11-03: correzioni da code review multi-agente (Brooks-lint, 4 revisori). Gate vacui in exp10 (G5 incondizionato; G4 dichiarava un'identità bitwise mai verificata). Accumulatori NaN-ciechi in exp9/exp11. Nuovo gate exp6 G0 (candidato ≡ core_np). Messaggio e warning D11 del mirror numpy allineati. Costo di D12 completato (tempo misurato, vincolo MPS) e confermato dall'utente. Prosa di D1 riallineata alla sua tabella. D7 annotata come superata da D11.
 
 Tutte le entropie sono in **nats** (logaritmo naturale).
 
@@ -55,11 +56,12 @@ protocollo, outlier a 5/20/100/1000 deviazioni standard:
 | 100σ | 76.970% | 0.182% | 0.176% | 0.767% |
 | 1000σ | 99.735% | 0.182% | 0.176% | 0.932% |
 
-Il min-max degrada **continuamente** con la magnitudine (7% a 20% a 77% a
+Il min-max degrada **continuamente** con la magnitudine (7.4% → 41% → 77% →
 99.7%): 1000.0 non è un caso patologico isolato, è il limite di una curva
-che già a 5σ (un outlier realistico, non estremo) supera il gate del 10%.
-Quantile-winsorized e range fisso sono **piatti** su tre ordini di
-grandezza — la robustezza non dipende dalla scala dell'outlier, coerente
+che supera il gate del 10% già a 20σ; a 5σ (un outlier realistico, non
+estremo) resta sotto il gate (7.4%), ma è ~40× il quantile-winsorized
+(0.182%). Quantile-winsorized e range fisso sono **piatti** su più di due
+ordini di grandezza (5σ → 1000σ) — la robustezza non dipende dalla scala dell'outlier, coerente
 con il meccanismo (il clamp ignora il valore oltre il quantile, qualunque
 esso sia). Il k-NN cresce lievemente con la magnitudine ma resta sotto
 gate. Sweep completo in `validation/exp1_binning_outliers.py` (informativo,
@@ -416,7 +418,7 @@ strategie superstiti (`relu`, `abs`).
 
 ## D7 — Core numpy di riferimento (E1 / E2): mirror numpy del core torch, equivalenza gated
 
-**Formula adottata.** Nessuna nuova formula: D1–D6 invariate. `entropylens/core_np.py` replica le stesse operazioni in numpy float32; le uniche operazioni non bitwise-garantite sono i quantili (`np.quantile` vs `torch.quantile`, interpolazione lineare in entrambi) e l'ordine di somma nelle riduzioni.
+**Formula adottata.** Nessuna nuova formula: D1–D6 invariate. `entropylens/core_np.py` replica le stesse operazioni in numpy float32 (somme, quantili e indice di bin in float64 da D12); le uniche operazioni non bitwise-garantite sono i quantili (`np.quantile` vs `torch.quantile`, interpolazione lineare in entrambi) e l'ordine di somma nelle riduzioni.
 
 **Evidenza (exp6, torch 2.8.0+cpu / numpy 2.3.3 / Python 3.13).**
 
@@ -430,7 +432,7 @@ strategie superstiti (`relu`, `abs`).
 | G4 per-example max \|ΔH\| (relu e abs), posizioni NaN identiche | 7.15e-07 (gate 1e-6) |
 | G5 CI: scarto relativo medio semi-ampiezza | 0.060 (gate 10%); copertura pooled per-colonna 0.938, min colonna 0.90 su gauss N=400 (gate ≥0.85) |
 
-**Conseguenza API (documentata, non silenziosa).** Il CI numpy usa `rng: np.random.Generator` al posto di `generator: torch.Generator`: i due CI NON sono riproducibili l'uno dall'altro (RNG diversi), l'equivalenza è statistica, non bitwise. `core_np` non importa torch/tensorflow/jax (test AST E2, analogo di B4). **Divergenza documentata sulla validazione dell'input:** `core_np` valida la finitezza DOPO il cast a float32, quindi un input float64 che trabocca a inf in float32 viene rifiutato (ValueError), mentre il core torch controlla `isfinite` sul dtype originale e poi calcola silenziosamente su inf dopo il downcast — il mirror numpy è intenzionalmente più severo.
+**Conseguenza API (documentata, non silenziosa).** Il CI numpy usa `rng: np.random.Generator` al posto di `generator: torch.Generator`: i due CI NON sono riproducibili l'uno dall'altro (RNG diversi), l'equivalenza è statistica, non bitwise. `core_np` non importa torch/tensorflow/jax (test AST E2, analogo di B4). **Divergenza documentata sulla validazione dell'input:** `core_np` valida la finitezza DOPO il cast a float32, quindi un input float64 che trabocca a inf in float32 viene rifiutato (ValueError), mentre il core torch controlla `isfinite` sul dtype originale e poi calcola silenziosamente su inf dopo il downcast — il mirror numpy è intenzionalmente più severo. **→ SUPERATO da D11 (2026-08-03):** il core torch ora casta prima e controlla dopo, i due core rifiutano lo stesso input.
 
 ---
 
@@ -473,6 +475,9 @@ s = Σ_i a_i         (a_i ≥ 0 per costruzione, post-strategia)
 valid ⟺ s > 0
 p_i = a_i / s       [nessun clamp sul denominatore]
 ```
+
+*Da D12 (2026-11-02): somma e divisione in float64, per l'overflow
+all'estremo opposto della scala.*
 
 `s` è somma di termini non negativi, quindi `s ≥ max(a)`: il test `s > 0` è
 esatto e non esiste una riga con elementi non nulli e somma nulla. Il clamp
@@ -517,7 +522,8 @@ con M grande una riga può superare 1e-38 in somma pur avendo elementi molto
 più piccoli. Regime raggiungibile con reti in collasso, attivazioni post-
 softmax nelle code, o pesi molto piccoli. Congelato in
 `tests/test_core_perexample.py::test_underflow_uniform_row` (6 scale × 2
-strategie) e nel gemello numpy in `test_core_np_equivalence.py`.
+strategie, di cui 1e-30 e 1e-38 di controllo) e nel gemello numpy in
+`test_core_np_equivalence.py` (4 scale × 2 strategie).
 
 ---
 
@@ -573,8 +579,8 @@ decisione):
 | G1 | float64 traboccante → ValueError su 3 entry point × 2 core (6 casi) | PASS |
 | G2 | nessuna regressione: NaN, ±Inf, vuoto, 4D, 1D ancora rifiutati | PASS |
 | G3 | float64 ordinario ancora ACCETTATO e bitwise uguale al float32 equivalente (incluso 1e37, grande ma rappresentabile) | PASS |
-| G4 | percorso float32 intatto: anchor D3 (0.7362 / 0.0856) e regressione D10 (riga uniforme → log 8) invariati | PASS |
-| G5 | il comportamento pre-fix DEVE fallire G1 — verificato: accettava con H=0.0, reliable=True | PASS |
+| G4 | percorso float32: anchor D3 (0.7362 / 0.0856) e riga uniforme subnormale D10 (1e-40 → log 8) invariati. Al commit di D11 (4a6b29f) anche bitwise uguale al pre-D11; D12 ha poi cambiato di proposito gli intermedi float32, cambio gated da exp11 G4 | PASS |
+| G5 | l'ordine pre-fix (congelato in exp10 come `c0_validate`) DEVE fallire G1 — rieseguito ad ogni run: accetta l'input e restituisce inf dopo il cast (pre-fix la libreria dava H=0.0, reliable=True) | PASS |
 | G6 | i due core concordano accept/reject su tutta la batteria (7 casi) | PASS |
 
 **Nota metodologica (bug nel gate, non nella libreria).** La prima stesura
@@ -585,6 +591,19 @@ una divergenza float64/float32 inesistente. Corretto in confronto
 NaN-aware (maschere identiche + valori finiti bitwise uguali). Registrato
 perché è il secondo caso in cui un gate ha prodotto un falso segnale: i
 gate stessi vanno letti con la stessa diffidenza del codice.
+
+**Correzione (2026-11-03, code review multi-agente).** Nella prima stesura
+G5 era un `check(..., True)` incondizionato: dopo il fix stampava "already
+fixed" e non poteva fallire. G4 dichiarava un'identità bitwise col pre-fix
+che verificava solo a tolleranza, e la sua riga "regressione D10" usava
+scala 0.25, dove anche il codice pre-D10 dà log 8. Corretti entrambi (G5
+con baseline congelata come exp9/exp11, G4 riformulato e riga a 1e-40).
+Terzo caso di gate che segnalava il falso. Corretta anche la deriva del
+mirror numpy: il messaggio d'errore ora nomina il caso overflow come quello
+torch, e il cast è in `np.errstate(over="ignore")`. Prima, con
+warnings-as-errors, `core_np` sollevava `RuntimeWarning` invece di
+`ValueError`; ora è congelato in
+`test_overflow_rejection_same_error_in_both_cores`.
 
 **Conseguenza API (dichiarata, non silenziosa).** Cambio di comportamento
 osservabile: input float64 con valori oltre il range float32, prima
@@ -623,7 +642,7 @@ nessun gate sondava valori finiti vicini al massimo float32.
 ```
 per-esempio:  s = Σ_i float64(a_i);   p_i = float32(float64(a_i) / s)
 batch-wise:   x64 = float64(x);  lo, hi = quantile(x64);  width = hi − lo
-              idx = floor((clip(x64, lo, hi) − lo) / width · B)
+              idx = min(floor((clip(x64, lo, hi) − lo) / width · B), B − 1)
 ```
 
 Il resto (log, Miller-Madow, normalizzazione) resta in float32. Il float64
@@ -684,16 +703,32 @@ nuovo verde con gli stessi numeri di prima (max \|dH\| 4.77e-07, copertura
 pooled 0.938).
 
 **Costo.** Copie float64 transitorie delle attivazioni negli intermedi
-(~2× memoria in quei passaggi), marcate `ponytail:` in `core.py`. Nessun
-rallentamento osservato sulla suite.
+(~2× memoria in quei passaggi), marcate `ponytail:` in `core.py`. Tempo,
+misurato in code review (CPU, 128×512 e 256×4096, best of 7):
+`batch_wise_entropy` ×1.20–1.21 (torch) / ×1.25–1.29 (numpy),
+`per_example_entropy` ×1.27–1.28 / ×1.14–1.15. Il costo cade sul percorso
+di osservazione, cioè a ogni forward tracciato e per ogni layer. La suite
+ha input troppo piccoli per mostrarlo. Vincolo di piattaforma: il backend
+MPS di PyTorch (GPU Apple) non supporta float64, quindi
+`per_example_entropy` su tensori MPS ora solleva errore. Non è verificato
+su hardware; il supporto GPU è comunque già dichiarato non verificato nel
+README. Questi due costi mancavano nella prima stesura di questa voce:
+sono stati riportati all'utente, che il 2026-11-03 ha confermato
+l'opzione 1.
 
 **Portata.** Attivazioni finite ma vicine a 3.4e38: reti in divergenza.
 Raro, ma è proprio il caso in cui lo strumento deve dare un allarme e non
 un "neurone concentrato". Congelato in
 `tests/test_core_perexample.py::test_overflow_uniform_row` (3 righe × 2
 strategie), `tests/test_core_batchwise.py::test_overflow_power_of_two_scale_invariance`
-(k = 60, 100, 118) e `::test_overflow_quantile_straddle`, gemelli numpy in
-`test_core_np_equivalence.py`.
+(k = 60 e 100 di controllo, 118) e `::test_overflow_quantile_straddle`.
+Gemelli numpy in `test_core_np_equivalence.py`:
+`test_per_example_overflow_equivalence` (riga 3e38 × 2 strategie) e
+`test_batch_wise_overflow_equivalence` (input G2 e G3; counts bitwise tra i
+core e uguali all'input non scalato, quindi è intercettato anche un revert
+in entrambi i core). Il candidato numpy di exp6 è ora vincolato a
+`core_np.py` dal gate G0 (identità AST), che chiude la deriva descritta
+sopra.
 
 ---
 
