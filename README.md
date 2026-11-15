@@ -15,6 +15,14 @@ enters the autograd graph.
 > spread out over the batch", nothing more. No semantic-interpretability
 > claims, by design.
 
+## Why it matters
+
+Model risk teams and the EU AI Act (Articles 13–15 for high-risk systems such as credit scoring) ask for evidence that a model behaves as documented: that it is monitored, that degradation is detected and that its outputs can be interpreted by the people overseeing it. Most interpretability tools answer *"which input drove this prediction?"*. entropylens answers a complementary, purely statistical question: *"is the network's internal behaviour changing, collapsing or degenerating?"*
+
+- **Monitoring:** dead or saturated neurons show up as entropy → 0, before accuracy metrics move.
+- **Validation:** per-layer entropy trends during training are a reproducible artefact for a model validation report.
+- **Honesty by design:** every estimate carries a `reliable` flag; a degenerate estimate is reported as "not estimable", never as "low entropy".
+
 ![Training dashboard: layer trend, per-neuron heatmaps, top-k neurons](experiments/entropy_dashboard.png)
 
 *Real output of `experiments/viz_demo.py`: an MLP trained for 30 epochs.
@@ -251,6 +259,16 @@ registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
 of the final gate, alongside the 183-test suite) — all 12 scripts run in
 CI (`.github/workflows/tests.yml`), not just the 3 in the `backends` job.
+
+## Design notes
+
+Working documents kept in the repo as the audit trail (in Italian):
+
+- [`MATH_DECISIONS.md`](MATH_DECISIONS.md) — validated formulas and closed
+  decisions (D1–D12), each with its numeric evidence.
+- [`STATUS.md`](STATUS.md) — exit-checklist status registry.
+- [`EXPERIMENT_NOTES.md`](EXPERIMENT_NOTES.md) — training experiment:
+  corrected vs. defective estimator on the same run.
 
 ## Project layout
 
