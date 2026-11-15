@@ -19,7 +19,7 @@ enters the autograd graph.
 
 Model risk teams and the EU AI Act (Articles 13–15 for high-risk systems such as credit scoring) ask for evidence that a model behaves as documented: that it is monitored, that degradation is detected and that its outputs can be interpreted by the people overseeing it. Most interpretability tools answer *"which input drove this prediction?"*. entropylens answers a complementary, purely statistical question: *"is the network's internal behaviour changing, collapsing or degenerating?"*
 
-- **Monitoring:** dead or saturated neurons show up as entropy → 0, before accuracy metrics move.
+- **Monitoring:** dead or saturated neurons show up as entropy → 0 — a signal that aggregate metrics such as accuracy do not expose.
 - **Validation:** per-layer entropy trends during training are a reproducible artefact for a model validation report.
 - **Honesty by design:** every estimate carries a `reliable` flag; a degenerate estimate is reported as "not estimable", never as "low entropy".
 
@@ -299,8 +299,8 @@ tests/              full suite (183 tests, torch + numpy + TF + JAX)
 ## What's supported today
 
 The exclusions above are each documented where they apply; this table is
-just their intersection in one place (peer review, R3: assembling it from
-five separate documents costs a disappointed first use).
+just their intersection in one place (assembling it from five separate
+documents costs a disappointed first use).
 
 | | PyTorch | TensorFlow/Keras | JAX/Flax |
 |---|---|---|---|
@@ -316,8 +316,7 @@ Numbers across backends are equivalence-tested on the estimator core only
 (D7, numpy vs torch on identical inputs). Whether the *same model* observed
 through the PyTorch hook and through the TF auxiliary model reads the same
 entropy at the same training step — where BatchNorm/Dropout make the two
-forward passes genuinely different — has not been measured (peer review,
-R3/P2).
+forward passes genuinely different — has not been measured.
 
 ## Out of scope in v1
 
