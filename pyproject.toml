@@ -10,5 +10,8 @@ viz = ["matplotlib>=3.5"]
 tf = ["tensorflow>=2.16"]
 jax = ["jax>=0.10", "flax>=0.12"]
 
+[tool.setuptools]
+packages = ["entropylens"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
