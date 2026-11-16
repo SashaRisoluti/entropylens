@@ -67,6 +67,14 @@ plots use it by default and never show raw nats without their bound.
 
 ## Quickstart — functional API
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SashaRisoluti/entropylens/blob/main/examples/quickstart_colab.ipynb)
+
+New to the library? The [Colab quickstart](examples/quickstart_colab.ipynb)
+runs everything below on synthetic data and a small MLP: both metrics,
+tracking during training, the dashboard, and the `reliable` flag on
+degenerate inputs. No GPU and no dataset download; the outputs are stored
+in the notebook, so it also reads on GitHub without running it.
+
 ```python
 import torch
 from entropylens import batch_wise_entropy, per_example_entropy
@@ -204,6 +212,55 @@ the validated grid — read it as "≥ 85%, conservative", valid for
 N ≥ 200 (N ≈ 400 under extreme sparsity; the function detects that from
 the histogram and warns).
 
+## Overhead
+
+`benchmarks/overhead.py` times one optimiser step (forward, loss, backward,
+Adam step) with and without a default `EntropyTracker` attached, on ReLU MLPs
+with synthetic data, CPU only, 4 torch threads. Each number is the median of
+150 timed steps (30 steps in each of 5 fresh processes, after 5 warm-up
+steps); the full method, the IQRs and the peak-memory table are in
+[`benchmarks/results.md`](benchmarks/results.md).
+
+Worst case, tracker attached on every training step:
+
+| Model | Batch | Baseline median (ms) | Tracked median (ms) | Overhead (ms/step) | Overhead (%) |
+| --- | --- | --- | --- | --- | --- |
+| small | 256 | 0.337 | 9.314 | 8.977 | 2666 |
+| small | 1024 | 0.449 | 22.129 | 21.681 | 4831 |
+| medium | 256 | 0.761 | 29.285 | 28.524 | 3748 |
+| medium | 1024 | 1.808 | 75.578 | 73.771 | 4081 |
+| large | 256 | 3.350 | 59.530 | 56.180 | 1677 |
+| large | 1024 | 11.003 | 379.752 | 368.749 | 3351 |
+
+The pattern shown in "Tracking a model during training" (one extra tracked
+`torch.no_grad()` forward pass, for example once per epoch) costs this much
+per tracked pass:
+
+| Model | Batch | Tracked pass median (ms) | Baseline step median (ms) | Cost in baseline steps |
+| --- | --- | --- | --- | --- |
+| small | 256 | 8.803 | 0.337 | 26.1 |
+| small | 1024 | 21.970 | 0.449 | 49.0 |
+| medium | 256 | 28.312 | 0.761 | 37.2 |
+| medium | 1024 | 74.475 | 1.808 | 41.2 |
+| large | 256 | 58.294 | 3.350 | 17.4 |
+| large | 1024 | 366.394 | 11.003 | 33.3 |
+
+Models: small = 64 units × 2 hidden layers, medium = 256 × 3, large = 512 × 4;
+the tracker hooks every leaf layer. Tracking every step is therefore
+expensive on these models; tracking one pass per epoch of E steps adds the
+last column divided by E to the training time.
+
+Measured on Apple M1, 8 logical cores, macOS-15.7.9-arm64-arm-64bit,
+Python 3.12.2, torch 2.2.2, numpy 1.26.4, on 2026-11-16, with other
+processes running (1-minute load average 5.13 at the start). Regenerate
+with `python benchmarks/overhead.py`.
+
+Not measured: GPU, conv layers (the tracker skips them), the TensorFlow and
+JAX backends, a tracker restricted with `layer_filter`, and any other
+architecture, thread count or machine. Peak memory was measured as process
+peak RSS, and most differences were within run-to-run spread; see
+`benchmarks/results.md`.
+
 ## Honest limitations (documented, tested, not hidden)
 
 - The `reliable` flag is a **necessary, not sufficient** condition
@@ -253,16 +310,16 @@ evidence. The short version:
    (N ≥ 90 at B=32) with the documented limitations above.
 4. **Uncertainty** — full-pipeline bootstrap CI (see above).
 
-Full specification with proofs, decision evidence and revision history
-(in Italian): [`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
+Full specification with proofs, decision evidence and revision history:
+[`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
 registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
-of the final gate, alongside the 183-test suite) — all 12 scripts run in
+of the final gate, alongside the 184-test suite) — all 12 scripts run in
 CI (`.github/workflows/tests.yml`), not just the 3 in the `backends` job.
 
 ## Design notes
 
-Working documents kept in the repo as the audit trail (in Italian):
+Working documents kept in the repo as the audit trail:
 
 - [`MATH_DECISIONS.md`](MATH_DECISIONS.md) — validated formulas and closed
   decisions (D1–D12), each with its numeric evidence.
@@ -293,7 +350,9 @@ validation/         frozen pre-implementation numeric evidence (exp1–exp5,
                     (input dtype/overflow contract, D11) + exp11
                     (float32 overflow in intermediates, D12)
 experiments/        training experiment + viz demo
-tests/              full suite (183 tests, torch + numpy + TF + JAX)
+tests/              full suite (184 tests, torch + numpy + TF + JAX)
+benchmarks/         tracking-overhead benchmark + generated results
+examples/           Colab quickstart notebook
 ```
 
 ## What's supported today
