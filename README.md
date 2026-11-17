@@ -15,6 +15,14 @@ enters the autograd graph.
 > spread out over the batch", nothing more. No semantic-interpretability
 > claims, by design.
 
+## Why it matters
+
+Model risk teams and the EU AI Act (Articles 13–15 for high-risk systems such as credit scoring) ask for evidence that a model behaves as documented: that it is monitored, that degradation is detected and that its outputs can be interpreted by the people overseeing it. Most interpretability tools answer *"which input drove this prediction?"*. entropylens answers a complementary, purely statistical question: *"is the network's internal behaviour changing, collapsing or degenerating?"*
+
+- **Monitoring:** dead or saturated neurons show up as entropy → 0 — a signal that aggregate metrics such as accuracy do not expose.
+- **Validation:** per-layer entropy trends during training are a reproducible artefact for a model validation report.
+- **Honesty by design:** every estimate carries a `reliable` flag; a degenerate estimate is reported as "not estimable", never as "low entropy".
+
 ![Training dashboard: layer trend, per-neuron heatmaps, top-k neurons](experiments/entropy_dashboard.png)
 
 *Real output of `experiments/viz_demo.py`: an MLP trained for 30 epochs.
@@ -58,6 +66,14 @@ comparable across layers of different width — the library's report and
 plots use it by default and never show raw nats without their bound.
 
 ## Quickstart — functional API
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SashaRisoluti/entropylens/blob/main/examples/quickstart_colab.ipynb)
+
+New to the library? The [Colab quickstart](examples/quickstart_colab.ipynb)
+runs everything below on synthetic data and a small MLP: both metrics,
+tracking during training, the dashboard, and the `reliable` flag on
+degenerate inputs. No GPU and no dataset download; the outputs are stored
+in the notebook, so it also reads on GitHub without running it.
 
 ```python
 import torch
@@ -196,6 +212,56 @@ the validated grid — read it as "≥ 85%, conservative", valid for
 N ≥ 200 (N ≈ 400 under extreme sparsity; the function detects that from
 the histogram and warns).
 
+## Overhead
+
+`benchmarks/overhead.py` measures the cost of tracking on ReLU MLPs with
+synthetic data, CPU only, 4 torch threads, with a default
+`EntropyTracker` that hooks every leaf layer. Each number is the median of
+150 timed iterations (30 in each of 5 fresh processes, after 5 warm-up
+iterations); the full method, the IQRs and the peak-memory table are in
+[`benchmarks/results.md`](benchmarks/results.md). Models: small = 64 units ×
+2 hidden layers, medium = 256 × 3, large = 512 × 4.
+
+**Expected cost, recommended usage.** Track one extra `torch.no_grad()`
+forward pass per epoch, as in "Tracking a model during training". One tracked
+pass costs:
+
+| Model | Batch | Tracked pass median (ms) | Baseline step median (ms) | Cost in baseline steps |
+| --- | --- | --- | --- | --- |
+| small | 256 | 6.924 | 0.319 | 21.7 |
+| small | 1024 | 17.005 | 0.433 | 39.2 |
+| medium | 256 | 21.650 | 0.716 | 30.2 |
+| medium | 1024 | 57.969 | 1.679 | 34.5 |
+| large | 256 | 46.873 | 2.809 | 16.7 |
+| large | 1024 | 319.450 | 8.454 | 37.8 |
+
+With one tracked pass per epoch of E training steps, tracking adds the last
+column divided by E to the training time.
+
+**Worst case: tracker attached on every training step.** Each step then
+includes the forward, backward and optimiser update plus the entropy
+computation:
+
+| Model | Batch | Baseline median (ms) | Tracked median (ms) | Overhead (ms/step) | Overhead (%) |
+| --- | --- | --- | --- | --- | --- |
+| small | 256 | 0.319 | 7.288 | 6.969 | 2182 |
+| small | 1024 | 0.433 | 17.447 | 17.013 | 3925 |
+| medium | 256 | 0.716 | 22.569 | 21.853 | 3052 |
+| medium | 1024 | 1.679 | 59.128 | 57.449 | 3422 |
+| large | 256 | 2.809 | 48.888 | 46.079 | 1641 |
+| large | 1024 | 8.454 | 311.183 | 302.729 | 3581 |
+
+Measured on Apple M1, 8 logical cores, macOS-15.7.9-arm64-arm-64bit,
+Python 3.12.2, torch 2.2.2, numpy 1.26.4, on 2026-11-17,
+with a 1-minute load average of 2.08 when the run started.
+Regenerate with `python benchmarks/overhead.py`.
+
+Not measured: GPU, conv layers (the tracker skips them), the TensorFlow and
+JAX backends, a tracker restricted with `layer_filter`, and any other
+architecture, thread count or machine. Peak memory was measured as process
+peak RSS, and most differences were within run-to-run spread; see
+`benchmarks/results.md`.
+
 ## Honest limitations (documented, tested, not hidden)
 
 - The `reliable` flag is a **necessary, not sufficient** condition
@@ -245,12 +311,22 @@ evidence. The short version:
    (N ≥ 90 at B=32) with the documented limitations above.
 4. **Uncertainty** — full-pipeline bootstrap CI (see above).
 
-Full specification with proofs, decision evidence and revision history
-(in Italian): [`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
+Full specification with proofs, decision evidence and revision history:
+[`MATH_DECISIONS.md`](MATH_DECISIONS.md). Checklist status
 registry: [`STATUS.md`](STATUS.md). The frozen numeric-evidence scripts
 live in [`validation/`](validation/) and must stay green (they are part
-of the final gate, alongside the 183-test suite) — all 12 scripts run in
+of the final gate, alongside the 184-test suite) — all 12 scripts run in
 CI (`.github/workflows/tests.yml`), not just the 3 in the `backends` job.
+
+## Design notes
+
+Working documents kept in the repo as the audit trail:
+
+- [`MATH_DECISIONS.md`](MATH_DECISIONS.md) — validated formulas and closed
+  decisions (D1–D12), each with its numeric evidence.
+- [`STATUS.md`](STATUS.md) — exit-checklist status registry.
+- [`EXPERIMENT_NOTES.md`](EXPERIMENT_NOTES.md) — training experiment:
+  corrected vs. defective estimator on the same run.
 
 ## Project layout
 
@@ -275,14 +351,16 @@ validation/         frozen pre-implementation numeric evidence (exp1–exp5,
                     (input dtype/overflow contract, D11) + exp11
                     (float32 overflow in intermediates, D12)
 experiments/        training experiment + viz demo
-tests/              full suite (183 tests, torch + numpy + TF + JAX)
+tests/              full suite (184 tests, torch + numpy + TF + JAX)
+benchmarks/         tracking-overhead benchmark + generated results
+examples/           Colab quickstart notebook
 ```
 
 ## What's supported today
 
 The exclusions above are each documented where they apply; this table is
-just their intersection in one place (peer review, R3: assembling it from
-five separate documents costs a disappointed first use).
+just their intersection in one place (assembling it from five separate
+documents costs a disappointed first use).
 
 | | PyTorch | TensorFlow/Keras | JAX/Flax |
 |---|---|---|---|
@@ -298,8 +376,7 @@ Numbers across backends are equivalence-tested on the estimator core only
 (D7, numpy vs torch on identical inputs). Whether the *same model* observed
 through the PyTorch hook and through the TF auxiliary model reads the same
 entropy at the same training step — where BatchNorm/Dropout make the two
-forward passes genuinely different — has not been measured (peer review,
-R3/P2).
+forward passes genuinely different — has not been measured.
 
 ## Out of scope in v1
 
