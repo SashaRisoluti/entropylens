@@ -30,9 +30,9 @@ All entropies are in **nats** (natural logarithm).
 
 ```
 lo = Quantile(x, q_lo),  hi = Quantile(x, q_hi)
-se hi <= lo:  H = 0, reliable = False, reason = "degenerate"
-altrimenti:   bin uniformi su [lo, hi]; i valori fuori range sono
-              clampati nel primo/ultimo bin (winsorizzazione)
+if hi <= lo:  H = 0, reliable = False, reason = "degenerate"
+otherwise:    uniform bins on [lo, hi]; out-of-range values are
+              clamped into the first/last bin (winsorization)
 H_plugin = - Σ_k p_k log p_k,   p_k = c_k / N
 ```
 
@@ -272,12 +272,12 @@ same sample, and that variance is invisible to the Basharin formula.
 **Adopted formula** (batch-wise entropy only; see below for why):
 
 ```
-per r = 1..R (default R = 200):
-    x*_r  = ricampionamento con reimmissione degli N valori GREZZI
-    bordi quantile RI-stimati su x*_r → istogramma winsorizzato → H_MM,r
-sd_boot = deviazione standard campionaria dei { H_MM,r }
-CI 95%  = H_MM ± 1.96 · sd_boot     [intervallo normale centrato sulla
-                                     stima puntuale, NON percentile]
+for r = 1..R (default R = 200):
+    x*_r  = resample with replacement of the N RAW values
+    quantile edges RE-estimated on x*_r → winsorized histogram → H_MM,r
+sd_boot = sample standard deviation of { H_MM,r }
+CI 95%  = H_MM ± 1.96 · sd_boot     [normal interval centered on the
+                                     point estimate, NOT percentile]
 ```
 
 **Evidence (exp4b).** Coverage of the nominal 95% CI on the FULL pipeline
@@ -486,9 +486,9 @@ while `valid` stays `True`.
 **Adopted formula.**
 
 ```
-s = Σ_i a_i         (a_i ≥ 0 per costruzione, post-strategia)
+s = Σ_i a_i         (a_i ≥ 0 by construction, post-strategy)
 valid ⟺ s > 0
-p_i = a_i / s       [nessun clamp sul denominatore]
+p_i = a_i / s       [no clamp on the denominator]
 ```
 
 *Since D12 (2026-11-02): sum and division in float64, for the overflow

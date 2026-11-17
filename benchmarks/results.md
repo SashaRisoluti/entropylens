@@ -5,12 +5,12 @@ script. The same numbers, unformatted, are in `results.csv`.
 
 ## Environment
 
-- Date: 2026-11-16
+- Date: 2026-11-17
 - CPU: Apple M1, 8 logical cores
 - OS: macOS-15.7.9-arm64-arm-64bit
 - Python 3.12.2, torch 2.2.2, numpy 1.26.4
 - torch threads: 4 (`torch.set_num_threads`), CPU only
-- 1-minute load average when the run started: 5.13 (other processes
+- 1-minute load average when the run started: 2.08 (other processes
   were not stopped)
 
 ## Method
@@ -71,23 +71,23 @@ memory table; it grows linearly with the number of tracked passes.
 
 | Model | Batch | Baseline median (ms) | Baseline IQR (ms) | Tracked median (ms) | Tracked IQR (ms) | Overhead (ms/step) | Overhead (%) |
 |---|---|---|---|---|---|---|---|
-| small | 256 | 0.337 | 0.018 | 9.314 | 1.353 | 8.977 | 2666 |
-| small | 1024 | 0.449 | 0.070 | 22.129 | 1.499 | 21.681 | 4831 |
-| medium | 256 | 0.761 | 0.147 | 29.285 | 2.861 | 28.524 | 3748 |
-| medium | 1024 | 1.808 | 0.636 | 75.578 | 13.850 | 73.771 | 4081 |
-| large | 256 | 3.350 | 1.024 | 59.530 | 8.851 | 56.180 | 1677 |
-| large | 1024 | 11.003 | 3.875 | 379.752 | 55.185 | 368.749 | 3351 |
+| small | 256 | 0.319 | 0.058 | 7.288 | 1.067 | 6.969 | 2182 |
+| small | 1024 | 0.433 | 0.050 | 17.447 | 2.529 | 17.013 | 3925 |
+| medium | 256 | 0.716 | 0.073 | 22.569 | 3.042 | 21.853 | 3052 |
+| medium | 1024 | 1.679 | 0.356 | 59.128 | 11.386 | 57.449 | 3422 |
+| large | 256 | 2.809 | 0.276 | 48.888 | 8.852 | 46.079 | 1641 |
+| large | 1024 | 8.454 | 1.523 | 311.183 | 57.611 | 302.729 | 3581 |
 
 ### Time, README pattern: one tracked no-grad forward pass
 
 | Model | Batch | Tracked pass median (ms) | IQR (ms) | Baseline step median (ms) | Cost in baseline steps |
 |---|---|---|---|---|---|
-| small | 256 | 8.803 | 0.921 | 0.337 | 26.1 |
-| small | 1024 | 21.970 | 2.035 | 0.449 | 49.0 |
-| medium | 256 | 28.312 | 2.459 | 0.761 | 37.2 |
-| medium | 1024 | 74.475 | 6.742 | 1.808 | 41.2 |
-| large | 256 | 58.294 | 6.877 | 3.350 | 17.4 |
-| large | 1024 | 366.394 | 32.159 | 11.003 | 33.3 |
+| small | 256 | 6.924 | 0.777 | 0.319 | 21.7 |
+| small | 1024 | 17.005 | 5.792 | 0.433 | 39.2 |
+| medium | 256 | 21.650 | 3.017 | 0.716 | 30.2 |
+| medium | 1024 | 57.969 | 10.370 | 1.679 | 34.5 |
+| large | 256 | 46.873 | 9.737 | 2.809 | 16.7 |
+| large | 1024 | 319.450 | 57.598 | 8.454 | 37.8 |
 
 The last column is the tracked pass divided by the baseline step. With one
 tracked pass per epoch of E steps, the added training time is that number
@@ -97,12 +97,12 @@ divided by E.
 
 | Model | Batch | Baseline | Every step | Δ vs baseline | README pattern | Δ vs baseline | History per pass (KB) |
 |---|---|---|---|---|---|---|---|
-| small | 256 | 216.9 (195.8–223.9) | 228.7 (221.3–231.7) | +11.8 (within spread) | 228.3 (221.5–229.1) | +11.4 (within spread) | 7.1 |
-| small | 1024 | 225.6 (213.3–228.6) | 239.0 (227.8–242.4) | +13.4 (within spread) | 232.6 (214.2–239.5) | +7.0 (within spread) | 20.6 |
-| medium | 256 | 225.8 (211.7–229.3) | 242.8 (229.8–244.0) | +17.0 (within spread) | 234.3 (206.6–242.3) | +8.5 (within spread) | 21.8 |
-| medium | 1024 | 238.5 (230.9–244.9) | 284.6 (271.2–300.1) | +46.1 | 286.1 (250.9–291.0) | +47.6 | 42.1 |
-| large | 256 | 253.7 (245.3–261.1) | 269.1 (253.8–273.8) | +15.4 (within spread) | 274.4 (259.6–290.1) | +20.7 (within spread) | 49.1 |
-| large | 1024 | 275.6 (232.4–290.7) | 327.4 (316.6–354.2) | +51.7 (within spread) | 344.8 (325.5–373.8) | +69.1 | 76.1 |
+| small | 256 | 224.2 (215.5–226.7) | 228.8 (226.5–229.1) | +4.6 (within spread) | 227.8 (227.2–229.4) | +3.7 (within spread) | 7.1 |
+| small | 1024 | 226.4 (222.4–227.2) | 237.1 (222.9–241.1) | +10.7 (within spread) | 237.7 (231.3–240.0) | +11.3 | 20.6 |
+| medium | 256 | 226.4 (224.6–230.1) | 240.4 (213.5–242.6) | +14.0 (within spread) | 242.0 (238.0–242.6) | +15.5 | 21.8 |
+| medium | 1024 | 241.9 (229.6–248.1) | 292.7 (284.3–297.4) | +50.8 | 289.0 (285.9–301.0) | +47.1 | 42.1 |
+| large | 256 | 255.0 (250.4–255.8) | 269.9 (262.3–274.7) | +14.9 | 273.7 (250.8–287.1) | +18.7 (within spread) | 49.1 |
+| large | 1024 | 281.8 (271.1–296.3) | 367.6 (295.4–380.3) | +85.8 | 358.4 (328.6–363.4) | +76.6 | 76.1 |
 
 "Within spread" marks a difference no larger than the min–max spread of
 either side: it is not distinguishable from zero here.

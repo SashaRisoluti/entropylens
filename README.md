@@ -214,46 +214,47 @@ the histogram and warns).
 
 ## Overhead
 
-`benchmarks/overhead.py` times one optimiser step (forward, loss, backward,
-Adam step) with and without a default `EntropyTracker` attached, on ReLU MLPs
-with synthetic data, CPU only, 4 torch threads. Each number is the median of
-150 timed steps (30 steps in each of 5 fresh processes, after 5 warm-up
-steps); the full method, the IQRs and the peak-memory table are in
-[`benchmarks/results.md`](benchmarks/results.md).
+`benchmarks/overhead.py` measures the cost of tracking on ReLU MLPs with
+synthetic data, CPU only, 4 torch threads, with a default
+`EntropyTracker` that hooks every leaf layer. Each number is the median of
+150 timed iterations (30 in each of 5 fresh processes, after 5 warm-up
+iterations); the full method, the IQRs and the peak-memory table are in
+[`benchmarks/results.md`](benchmarks/results.md). Models: small = 64 units ×
+2 hidden layers, medium = 256 × 3, large = 512 × 4.
 
-Worst case, tracker attached on every training step:
-
-| Model | Batch | Baseline median (ms) | Tracked median (ms) | Overhead (ms/step) | Overhead (%) |
-| --- | --- | --- | --- | --- | --- |
-| small | 256 | 0.337 | 9.314 | 8.977 | 2666 |
-| small | 1024 | 0.449 | 22.129 | 21.681 | 4831 |
-| medium | 256 | 0.761 | 29.285 | 28.524 | 3748 |
-| medium | 1024 | 1.808 | 75.578 | 73.771 | 4081 |
-| large | 256 | 3.350 | 59.530 | 56.180 | 1677 |
-| large | 1024 | 11.003 | 379.752 | 368.749 | 3351 |
-
-The pattern shown in "Tracking a model during training" (one extra tracked
-`torch.no_grad()` forward pass, for example once per epoch) costs this much
-per tracked pass:
+**Expected cost, recommended usage.** Track one extra `torch.no_grad()`
+forward pass per epoch, as in "Tracking a model during training". One tracked
+pass costs:
 
 | Model | Batch | Tracked pass median (ms) | Baseline step median (ms) | Cost in baseline steps |
 | --- | --- | --- | --- | --- |
-| small | 256 | 8.803 | 0.337 | 26.1 |
-| small | 1024 | 21.970 | 0.449 | 49.0 |
-| medium | 256 | 28.312 | 0.761 | 37.2 |
-| medium | 1024 | 74.475 | 1.808 | 41.2 |
-| large | 256 | 58.294 | 3.350 | 17.4 |
-| large | 1024 | 366.394 | 11.003 | 33.3 |
+| small | 256 | 6.924 | 0.319 | 21.7 |
+| small | 1024 | 17.005 | 0.433 | 39.2 |
+| medium | 256 | 21.650 | 0.716 | 30.2 |
+| medium | 1024 | 57.969 | 1.679 | 34.5 |
+| large | 256 | 46.873 | 2.809 | 16.7 |
+| large | 1024 | 319.450 | 8.454 | 37.8 |
 
-Models: small = 64 units × 2 hidden layers, medium = 256 × 3, large = 512 × 4;
-the tracker hooks every leaf layer. Tracking every step is therefore
-expensive on these models; tracking one pass per epoch of E steps adds the
-last column divided by E to the training time.
+With one tracked pass per epoch of E training steps, tracking adds the last
+column divided by E to the training time.
+
+**Worst case: tracker attached on every training step.** Each step then
+includes the forward, backward and optimiser update plus the entropy
+computation:
+
+| Model | Batch | Baseline median (ms) | Tracked median (ms) | Overhead (ms/step) | Overhead (%) |
+| --- | --- | --- | --- | --- | --- |
+| small | 256 | 0.319 | 7.288 | 6.969 | 2182 |
+| small | 1024 | 0.433 | 17.447 | 17.013 | 3925 |
+| medium | 256 | 0.716 | 22.569 | 21.853 | 3052 |
+| medium | 1024 | 1.679 | 59.128 | 57.449 | 3422 |
+| large | 256 | 2.809 | 48.888 | 46.079 | 1641 |
+| large | 1024 | 8.454 | 311.183 | 302.729 | 3581 |
 
 Measured on Apple M1, 8 logical cores, macOS-15.7.9-arm64-arm-64bit,
-Python 3.12.2, torch 2.2.2, numpy 1.26.4, on 2026-11-16, with other
-processes running (1-minute load average 5.13 at the start). Regenerate
-with `python benchmarks/overhead.py`.
+Python 3.12.2, torch 2.2.2, numpy 1.26.4, on 2026-11-17,
+with a 1-minute load average of 2.08 when the run started.
+Regenerate with `python benchmarks/overhead.py`.
 
 Not measured: GPU, conv layers (the tracker skips them), the TensorFlow and
 JAX backends, a tracker restricted with `layer_filter`, and any other
